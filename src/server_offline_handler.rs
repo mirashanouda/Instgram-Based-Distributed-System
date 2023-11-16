@@ -52,9 +52,9 @@ fn handle_regular_requests(socket: &UdpSocket, servers: &mut Queue<i32>, flg: Ar
 
 fn notify_servers(message: &str) {
     let socket = UdpSocket::bind("0.0.0.0:0").expect("Failed to bind to a random port");
-    //for server in OTHER_SERVERS.iter() {
+    for server in OTHER_SERVERS.iter() {
         socket.send_to(message.as_bytes(), OTHER_SERVERS).expect("Failed to send message");
-//    }
+//  }
 }
 
 fn pass_request_to_next_server(socket: &UdpSocket, servers: &mut Queue<i32>, buffer: &[u8], size: usize) {
@@ -67,25 +67,6 @@ fn pass_request_to_next_server(socket: &UdpSocket, servers: &mut Queue<i32>, buf
 }
 
 
-fn token_handle(flag: Arc<Mutex<bool>>){
-    loop{
-      // recive
-      let mut buffer = [0; 512];
-      let token_socket = UdpSocket::bind("0.0.0.0:0").expect("Failed to bind socket");
-      let (size, _) = token_socket.recv_from(&mut buffer).expect("Failed to receive message");
-      let _ = str::from_utf8(&buffer[..size]).unwrap().trim().to_string();
-      let mut token = flag.lock().unwrap();
-      *token = true;
-      println!("I have the token now :( Yalaaaaahwy");
-      thread::sleep(Duration::from_millis(2000 as u64));
-      token = flag.lock().unwrap();
-      *token = false;
-      println!("Released token now :)");
-      let msg = "ball";
-      let next_server: SocketAddr = "10.7.57.199:65432".parse().expect("Failed to parse server address");
-      token_socket.send_to(msg.as_bytes(), next_server).expect("Failed to send message");
-  }
-  }
 
   fn main() {
 
@@ -97,8 +78,6 @@ fn token_handle(flag: Arc<Mutex<bool>>){
 
     let flag = Arc::new(Mutex::new(false));
     let flag_clone = Arc::clone(&flag);
-    thread::spawn(move || token_handle(flag_clone));
-  // launch a new thread (fun token )
     println!("Listening for peers on port 65432");
     let mut count = 0;
     loop {
