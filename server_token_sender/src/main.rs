@@ -3,48 +3,51 @@ use std::str;
 use std::thread;
 use std::time::Duration;
 use std::sync::{Arc, Mutex};
-mod queue;
-use queue::Queue;
+use common_lib::queue::Queue;
+use common_lib::utils;
 
 static ID: i32 = 2;
 
-static OTHER_SERVERS: [&str; 2] = [
-	"127.0.0.1:65432",
-    "127.0.0.1:1234",
+//requests port: 1231, 1232, 1233
+//offline ports: 2231, 2232, 2233
+//token ports: 3231, 3232, 3233
+
+static ONLINE_SERVERS: [&str; 2] = [
+	"127.0.0.1:2231",
+    "127.0.0.1:2233",
 ];
 
-
-fn send_status (msg: String){
-    let socket = UdpSocket::bind("0.0.0.0:0").expect("Failed to bind socket");
-	// send to all servers my current status (offline/online)
-	for server in OTHER_SERVERS {
-		let server_add: SocketAddr = server.parse().expect("Failed to parse server address");
-		socket.send_to(msg.as_bytes(), server_add).unwrap();
-		thread::sleep(Duration::from_secs(5));
-	}
-}
-
-fn handle_regular_requests(socket: &UdpSocket, servers: &mut Queue<i32>, flg: Arc<Mutex<bool>>) {
+fn handle_regular_requests(socket: &UdpSocket, servers: &mut Queue<i32>, flg: Arc<Mutex<bool>>, off_server: Arc<Mutex<i32>>) {
     let mut buffer = [0; 512];
-
+	let mut size = 512;
+	let mut _src_addr;
+	let mut handled: bool = true;
     loop {
-        let (size, _src_addr) = socket.recv_from(&mut buffer).expect("Failed to receive message");
-        if let Some((old, new_head)) = servers.dequeue() {
+		if handled {
+        	(size, _src_addr) = socket.recv_from(&mut buffer).expect("Failed to receive message");
+		}
+		if let Some((old, new_head)) = servers.dequeue() {
             let token = flg.lock().unwrap();
             
             if new_head == Some(&ID) {
                 // Case 1: Top of the queue and not offline
-                if !*token {
+                if *token == false {
                     let message = str::from_utf8(&buffer[..size]).unwrap().trim().to_string();
                     println!("Handling request: {}", message);
+					handled = true;
                 } 
                 // Case 2: Top of the queue and Offline
                 else {
-                    send_status(format!("offline - {}", ID));
-					thread::sleep(Duration::from_secs(2 as u64));
-					send_status(format!("online - {}", ID))
+					println!("Offline :(");
+                    // utils::send_offline(ID, ONLINE_SERVERS);
+					// thread::sleep(Duration::from_secs(2 as u64));
+					// utils::send_status(format!("online - {}", ID), ONLINE_SERVERS)
                 }
             }
+			// Case 3: not top of the queue and online
+			// else {
+			// 	// handled = false;
+			// }
             servers.enqueue(old);
             drop(token);
         }
@@ -52,8 +55,8 @@ fn handle_regular_requests(socket: &UdpSocket, servers: &mut Queue<i32>, flg: Ar
 }
 
 fn token_handle(flag: Arc<Mutex<bool>>){
-	let token_port = 1235;
-	let next_token_port = 1236;
+	let token_port = 3232;
+	let next_token_port = 3231;
 	let next_token_add = "127.0.0.1";
 
     let next_server: SocketAddr = format!("{}:{}", next_token_add, next_token_port).parse().expect("Failed to parse server address");
@@ -69,18 +72,18 @@ fn token_handle(flag: Arc<Mutex<bool>>){
 		let mut token = flag.lock().unwrap();
 		*token = true;
 		drop(token);
-		println!("I have the token now :( Yalaaaaahwy");
+		// println!("I have the token now :( Yalaaaaahwy");
 		thread::sleep(Duration::from_millis(2000 as u64));
 		token = flag.lock().unwrap();
 		*token = false;
 		drop(token);
-		println!("Released token now :)");
+		// println!("Released token now :)");
 		token_socket.send_to(msg.as_bytes(), next_server).expect("Failed to send message");
     }
 }
 
 fn main() {
-	let requests_port = 1232;
+	let requests_port = 1230 + ID;
 
 	//build the servers queue
 	let mut servers: Queue<i32> = Queue::new();
@@ -93,9 +96,19 @@ fn main() {
 	// launch a thread for token handler
 	thread::spawn(move || token_handle(flag_clone));
 
+	let off_server = Arc::new(Mutex::new(0));
+	let off_server_clone = Arc::clone(&off_server);
+	// launch a  thread for offline handler
+	thread::spawn(move || utils::offline_handler(off_server_clone, ID));
+
 	println!("Listening for requests on port {}", requests_port);
   	loop {
 		let socket = UdpSocket::bind(format!("0.0.0.0:{}", requests_port)).expect("Failed to bind socket");
-		handle_regular_requests(&socket , &mut servers, Arc::clone(&flag));
+		handle_regular_requests(
+			&socket,
+			&mut servers,
+			Arc::clone(&flag),
+			Arc::clone(&off_server)
+		);
 	}
 }
