@@ -3,8 +3,7 @@ use std::str;
 use std::thread;
 use std::time::Duration;
 use std::sync::{Arc, Mutex};
-mod queue;
-use queue::Queue;
+use common_lib::queue::Queue;
 
 static ID: i32 = 1;
 
@@ -55,8 +54,8 @@ fn handle_regular_requests(socket: &UdpSocket, servers: &mut Queue<i32>, flg: Ar
     }
 }
 
-fn token_handle(flag: Arc<Mutex<bool>>){
-	let token_port = 3230 + ID;
+fn token_handle(flag: Arc<Mutex<bool>>, id: i32){
+	let token_port = 3230 + id;
 	let next_token_port = token_port + 1;
 	let next_token_add = "127.0.0.1";
 
@@ -93,7 +92,7 @@ fn main() {
 	let flag = Arc::new(Mutex::new(false));
 	let flag_clone = Arc::clone(&flag);
 	// launch a thread for token handler
-	thread::spawn(move || token_handle(flag_clone));
+	thread::spawn(move || token_handle(flag_clone, ID));
 
 	println!("Listening for requests on port {}", requests_port);
   	loop {
