@@ -50,7 +50,7 @@ fn handle_regular_requests(socket: &UdpSocket, servers: &mut Queue<i32>, flg: Ar
     }
 }
 
-fn notify_servers(message: &str) {
+fn notify_servers(message: &str) 
     let socket = UdpSocket::bind("0.0.0.0:0").expect("Failed to bind to a random port");
     for server in OTHER_SERVERS.iter() {
         socket.send_to(message.as_bytes(), OTHER_SERVERS).expect("Failed to send message");
