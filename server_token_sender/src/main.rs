@@ -6,11 +6,10 @@ use std::sync::{Arc, Mutex};
 mod queue;
 use queue::Queue;
 
-static ID: i32 = 1;
+static ID: i32 = 2;
 
-// static offline_port: i32 = 1234;
 static OTHER_SERVERS: [&str; 2] = [
-	"10.40.54.24:65432",
+	"127.0.0.1:65432",
     "127.0.0.1:1234",
 ];
 
@@ -81,7 +80,7 @@ fn token_handle(flag: Arc<Mutex<bool>>){
 }
 
 fn main() {
-	let requests_port = 1234;
+	let requests_port = 1232;
 
 	//build the servers queue
 	let mut servers: Queue<i32> = Queue::new();

@@ -6,11 +6,7 @@ use std::sync::{Arc, Mutex};
 mod queue;
 use queue::Queue;
 
-static ID: i32 = 1;
-
-//requests port: 1231, 1232, 1233
-//offline ports: 2231, 2232, 2233
-//token ports: 3231, 3232, 3233
+static ID: i32 = 3;
 
 static OTHER_SERVERS: [&str; 2] = [
 	"127.0.0.1:65433",
@@ -56,8 +52,8 @@ fn handle_regular_requests(socket: &UdpSocket, servers: &mut Queue<i32>, flg: Ar
 }
 
 fn token_handle(flag: Arc<Mutex<bool>>){
-	let token_port = 3230 + ID;
-	let next_token_port = token_port + 1;
+	let token_port = 1236;
+	let next_token_port = 1235;
 	let next_token_add = "127.0.0.1";
 
 	let next_server: SocketAddr = format!("{}:{}", next_token_add, next_token_port).parse().expect("Failed to parse server address");
@@ -82,13 +78,13 @@ fn token_handle(flag: Arc<Mutex<bool>>){
 }
 
 fn main() {
-	let requests_port = 1230 + ID;
+	let requests_port = 1233;
 
 	//build the servers queue
 	let mut servers: Queue<i32> = Queue::new();
 	servers.enqueue(1);
 	servers.enqueue(2);
-	servers.enqueue(3);
+	// servers.enqueue(3);
 
 	let flag = Arc::new(Mutex::new(false));
 	let flag_clone = Arc::clone(&flag);
