@@ -39,6 +39,7 @@ fn handle_regular_requests(socket: &UdpSocket, servers: &mut Queue<i32>, flg: Ar
                 // Case 2: Top of the queue and Offline
                 else {
 					println!("Offline :(");
+					handled = false;
                     // utils::send_offline(ID, ONLINE_SERVERS);
 					// thread::sleep(Duration::from_secs(2 as u64));
 					// utils::send_status(format!("online - {}", ID), ONLINE_SERVERS)
