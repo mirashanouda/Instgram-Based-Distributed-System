@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use common_lib::queue::Queue;
 use common_lib::utils;
 
-static ID: i32 = 2;
+static ID: i32 = 3;
 
 //requests port: 1231, 1232, 1233
 //offline ports: 2231, 2232, 2233
@@ -14,7 +14,7 @@ static ID: i32 = 2;
 
 static ONLINE_SERVERS: [&str; 2] = [
 	"127.0.0.1:2231",
-    "127.0.0.1:2233",
+    "127.0.0.1:2232",
 ];
 
 fn handle_regular_requests(socket: &UdpSocket, servers: &mut Queue<i32>, flg: Arc<Mutex<bool>>, off_server: Arc<Mutex<i32>>) {
@@ -56,7 +56,7 @@ fn handle_regular_requests(socket: &UdpSocket, servers: &mut Queue<i32>, flg: Ar
 }
 
 fn token_handle(flag: Arc<Mutex<bool>>){
-	let token_port = 3232;
+	let token_port = 3230 + ID;
 	let next_token_port = 3231;
 	let next_token_add = "127.0.0.1";
 
@@ -90,7 +90,7 @@ fn main() {
 	let mut servers: Queue<i32> = Queue::new();
 	servers.enqueue(1);
 	servers.enqueue(2);
-	// servers.enqueue(3);
+	servers.enqueue(3);
 
 	let flag = Arc::new(Mutex::new(false));
 	let flag_clone = Arc::clone(&flag);

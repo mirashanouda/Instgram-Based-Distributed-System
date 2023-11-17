@@ -18,6 +18,7 @@ fn main() {
     let server_addresses = vec![
         "127.0.0.1:1231",
         "127.0.0.1:1232",
+        "127.0.0.1:1233",
     ]
     .into_iter()
     .map(|addr| addr.parse::<SocketAddr>().expect("Failed to parse server address"))
@@ -33,7 +34,7 @@ fn main() {
             for i in 0..num_threads {
                 let server_address = address.clone();
                 let client_handle = thread::spawn(move || {
-                    send_message_to_server(i, &server_address, format!("Hello from thread {}", i), 5)
+                    send_message_to_server(i, &server_address, format!("Hello from thread {}", i), 50)
                 });
                 client_handles.push(client_handle);
             }
