@@ -185,8 +185,12 @@ use common_lib::utils;
  
      img.save(&encoded_image_path).expect("Failed to save the image");
      println!("done Encoding \n");
-         // Send the encoded image to the client
-         send_image_to_client(socket, &src_addr, &encoded_image_path).expect("Failed to send encoded image to client");
+     let src= "127.0.0.1:9876".parse::<SocketAddr>().expect("Failed to parse server address");
+     let values :i32 =55;
+     let message=values.to_be_bytes();
+     socket.send_to(&message, &src).expect("Failed to send Ready");
+    // Send the encoded image to the client
+    send_image_to_client(socket, &src, &encoded_image_path).expect("Failed to send encoded image to client");
    
  }
  

@@ -195,7 +195,32 @@ fn recive_ack(socket: &UdpSocket,ser_list: &Vec<&str>)
             	},
                 Err(e) => return (), // Some other error
            }
-}         
+}     
+
+fn recive_ready(socket: &UdpSocket)
+{
+    let mut ack_buffer=[0;4];
+    loop {
+
+        let (size, _) = socket.recv_from(&mut ack_buffer).expect("Failed to receive message");
+            let message = u32::from_be_bytes(ack_buffer);
+            let message_usize  = message as usize;
+            if message_usize == 55
+            {
+            println!("Recived 55");
+            if let Err(e) = receive_image_from_server(&socket, "server_output.png") 
+            {
+                eprintln!("Failed to receive image: {}", e);
+            }
+            break;
+
+            }
+            else {println!("Received something else ");}
+
+   
+        }
+
+}
              
 fn main() {
     let ser_list = vec![
@@ -221,10 +246,7 @@ fn main() {
     }
     
     recive_ack(&socket, &ser_list);
-
-    if let Err(e) = receive_image_from_server(&socket, "server_output.png") {
-        eprintln!("Failed to receive image: {}", e);
-        }
-    
+    let socket = UdpSocket::bind("0.0.0.0:9876").expect("Failed to bind socket");
+    recive_ready(&socket);
 
 }
