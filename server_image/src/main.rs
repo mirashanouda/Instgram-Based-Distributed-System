@@ -31,7 +31,8 @@ use common_lib::queue::Queue;
 use common_lib::utils;
  
  //edit ID for each server
- static ID: i32=2;
+ static ID: i32=1;
+ 
  
  const MAX_PACKET_SIZE: usize = 65535;
  const HEADER_SIZE: usize = 8; // Adjust according to your actual header size
@@ -40,7 +41,10 @@ use common_lib::utils;
  const ACK_TIMEOUT: Duration = Duration::from_millis(500);
  
  fn send_image_to_client( client_addr: &SocketAddr, image_path: &str) -> io::Result<()> {
-    let socket = UdpSocket::bind(format!("0.0.0.0:9877")).expect("Failed to bind socket");
+    println!(" client socket = {}", format!("{}:{}", client_addr.ip(), client_addr.port()));
+    
+    let socket = UdpSocket::bind(format!("0.0.0.0:{}", client_addr.port())).expect("Failed to bind socket");
+    
      let file = File::open(image_path)?;
      let mut buf_reader = BufReader::new(file);
      let mut buffer = Vec::new();
@@ -61,6 +65,7 @@ use common_lib::utils;
              match socket.recv_from(&mut ack_buffer) {
                  Ok(_) => {
                      let ack_seq_number = usize::from_be_bytes(ack_buffer.try_into().unwrap());
+                     println!("Ach seq = {}", ack_seq_number);
                      if ack_seq_number == i {
                          break; // Correct ACK received, proceed to next chunk
                      }
@@ -79,8 +84,8 @@ use common_lib::utils;
      eot_packet.extend_from_slice(&END_OF_TRANSMISSION.to_be_bytes());
      socket.send_to(&eot_packet, client_addr)?;
 
-     let mut buffer = [0; 512];
-     let (size, _) = socket.recv_from(&mut buffer).expect("Failed to receive message");
+    //  let mut buffer = [0; 512];
+    //  let (size, _) = socket.recv_from(&mut buffer).expect("Failed to receive message");
  
      Ok(())
  }
@@ -97,17 +102,17 @@ use common_lib::utils;
  
  
      while !end_of_transmission_received {
-        println!("Waiting for data...");
+        // println!("Waiting for data...");
          match socket.recv_from(&mut buffer) {
              Ok((size,_)) => {
                 println!("Received data: {} bytes", size);
                  size_opt = Some(size);
  
                  // Check if the size of received data is less than HEADER_SIZE
-                 if size < HEADER_SIZE {
-                    println!("Data size less than HEADER_SIZE, continuing...");
-                     continue;
-                 }
+                //  if size < HEADER_SIZE {
+                //     println!("Data size less than HEADER_SIZE, continuing...");
+                //      continue;
+                //  }
  
                  let sequence_number = match buffer[..HEADER_SIZE].try_into() {
                      Ok(bytes) => usize::from_be_bytes(bytes),
@@ -190,9 +195,12 @@ use common_lib::utils;
  
      img.save(&encoded_image_path).expect("Failed to save the image");
      println!("done Encoding \n");
-     let src= "127.0.0.1:9876".parse::<SocketAddr>().expect("Failed to parse server address");
-     let values :i32 =55;
-     let message=values.to_be_bytes();
+
+     let src= format!("{}:{}", src_addr.ip(), src_addr.port() + 1).parse::<SocketAddr>().expect("Failed to parse server address");
+    //  println!("{}", format!("{}:{}", src_addr.ip(), src_addr.port() + 1));
+     
+     let values :i32 = 55;
+     let message = values.to_be_bytes();
      socket.send_to(&message, &src).expect("Failed to send Ready");
     // Send the encoded image to the client
     send_image_to_client(&src, &encoded_image_path).expect("Failed to send encoded image to client");
@@ -203,42 +211,41 @@ use common_lib::utils;
  fn handle_incoming(socket: &UdpSocket,mut count : u32 , servers: &mut Queue<i32>) -> u32 {
      let mut buffer = [0; 512];
      loop {
-        println!("{:?}",socket);
+        // println!("{:?}",socket);
          let (size, src_addr) = socket.recv_from(&mut buffer).expect("Failed to receive message");
-         println!("wrong recieve! {},{}",size,src_addr);
+        //  println!("wrong recieve! {},{}",size,src_addr);
          let message = str::from_utf8(&buffer[..size]).unwrap().trim().to_string();
-         println!("{}",message);
+        //  println!("{}",message);
          if message == "Request"
          {
-            println!("Request Recieved");
+            // println!("Request Recieved");
             //pop w add to end 
             if let Some((old, new_head)) = servers.dequeue(){  
             //if condtion 
             if new_head == Some(&ID) 
             { 
-                println!("Server Selected");		
+                // println!("Server Selected");		
                 count = count + 1;
                     // send back to the client
-                    let ack_message =ID.to_be_bytes();
+                    let ack_message =(ID-1).to_be_bytes();
                     socket.send_to(&ack_message, &src_addr);
                     println!("ID sent {}",ID);
                     receive_image(&socket , &src_addr );
                 }
             servers.enqueue(old);  
         }
- 
     }
  }
  }
 
 fn main() {
-
-    let req_port = 65432;
+    let req_port: i32 = 65432;
     //build el queue 
     let mut servers: Queue<i32> = Queue::new();
     servers.enqueue(1);
-    servers.enqueue(2);
-    servers.enqueue(3);
+    servers.enqueue(1);
+    servers.enqueue(1);
+    servers.enqueue(1);
 
     let flag = Arc::new(Mutex::new(false));
     let flag_clone = Arc::clone(&flag);
