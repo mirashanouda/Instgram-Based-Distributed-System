@@ -39,7 +39,8 @@ use common_lib::utils;
  const CHUNK_SIZE: usize = 508;
  const ACK_TIMEOUT: Duration = Duration::from_millis(500);
  
- fn send_image_to_client(socket: &UdpSocket, client_addr: &SocketAddr, image_path: &str) -> io::Result<()> {
+ fn send_image_to_client( client_addr: &SocketAddr, image_path: &str) -> io::Result<()> {
+    let socket = UdpSocket::bind(format!("0.0.0.0:9877")).expect("Failed to bind socket");
      let file = File::open(image_path)?;
      let mut buf_reader = BufReader::new(file);
      let mut buffer = Vec::new();
@@ -56,6 +57,7 @@ use common_lib::utils;
          loop {
              socket.send_to(&packet, client_addr)?;
              let mut ack_buffer = [0; HEADER_SIZE];
+             println!("{:?}",socket);
              match socket.recv_from(&mut ack_buffer) {
                  Ok(_) => {
                      let ack_seq_number = usize::from_be_bytes(ack_buffer.try_into().unwrap());
@@ -76,6 +78,9 @@ use common_lib::utils;
      let mut eot_packet = Vec::with_capacity(HEADER_SIZE);
      eot_packet.extend_from_slice(&END_OF_TRANSMISSION.to_be_bytes());
      socket.send_to(&eot_packet, client_addr)?;
+
+     let mut buffer = [0; 512];
+     let (size, _) = socket.recv_from(&mut buffer).expect("Failed to receive message");
  
      Ok(())
  }
@@ -190,43 +195,45 @@ use common_lib::utils;
      let message=values.to_be_bytes();
      socket.send_to(&message, &src).expect("Failed to send Ready");
     // Send the encoded image to the client
-    send_image_to_client(socket, &src, &encoded_image_path).expect("Failed to send encoded image to client");
+    send_image_to_client(&src, &encoded_image_path).expect("Failed to send encoded image to client");
    
  }
  
  
- fn handle_incoming(socket: UdpSocket, mut count : u32 , servers: &mut Queue<i32>) -> u32 {
+ fn handle_incoming(socket: &UdpSocket,mut count : u32 , servers: &mut Queue<i32>) -> u32 {
      let mut buffer = [0; 512];
      loop {
-         println!("Recieved");
+        println!("{:?}",socket);
          let (size, src_addr) = socket.recv_from(&mut buffer).expect("Failed to receive message");
+         println!("wrong recieve! {},{}",size,src_addr);
          let message = str::from_utf8(&buffer[..size]).unwrap().trim().to_string();
          println!("{}",message);
          if message == "Request"
          {
-             println!("Request Recieved");
-              //pop w add to end 
-             if let Some((old, new_head)) = servers.dequeue(){  
-             //if condtion 
-             if new_head == Some(&ID) 
-             { 
-                 println!("Server Selected");		
-                 count = count + 1;
-                     // send back to the client
-                     let ack_message =ID.to_be_bytes();
-                     socket.send_to(&ack_message, &src_addr);
-                     println!("ID sent {}",ID);
-                     receive_image(&socket , &src_addr );
-                 }
-                servers.enqueue(old);  
-         }
+            println!("Request Recieved");
+            //pop w add to end 
+            if let Some((old, new_head)) = servers.dequeue(){  
+            //if condtion 
+            if new_head == Some(&ID) 
+            { 
+                println!("Server Selected");		
+                count = count + 1;
+                    // send back to the client
+                    let ack_message =ID.to_be_bytes();
+                    socket.send_to(&ack_message, &src_addr);
+                    println!("ID sent {}",ID);
+                    receive_image(&socket , &src_addr );
+                }
+            servers.enqueue(old);  
+        }
  
-     }
+    }
  }
  }
 
 fn main() {
 
+    let req_port = 65432;
     //build el queue 
     let mut servers: Queue<i32> = Queue::new();
     servers.enqueue(1);
@@ -238,9 +245,8 @@ fn main() {
     println!("Listening for peers on port 65432");
     let mut count = 0;
     loop {
+        let socket = UdpSocket::bind(format!("0.0.0.0:{}", req_port)).expect("Failed to bind socket");
         // Spawn a thread to listen for incoming messages
-        let socket = UdpSocket::bind("0.0.0.0:65432").expect("Failed to bind socket");
-
-        count = handle_incoming(socket, count , &mut servers);
+        count = handle_incoming(&socket,count , &mut servers);
     }
 }
