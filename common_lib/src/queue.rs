@@ -43,6 +43,7 @@ impl<T> Queue<T> {
         }
     }
 
+
     // Remove and return the element at the front of the queue, along with the new head
    pub fn dequeue(&mut self) -> Option<(T, Option<&T>)> {
         self.head.take().map(move |mut old_head| {
