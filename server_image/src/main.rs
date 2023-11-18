@@ -31,7 +31,7 @@ use common_lib::queue::Queue;
 use common_lib::utils;
  
  //edit ID for each server
- static ID: i32=2;
+ static ID: i32=1;
  
  const MAX_PACKET_SIZE: usize = 65535;
  const HEADER_SIZE: usize = 8; // Adjust according to your actual header size
@@ -57,7 +57,7 @@ use common_lib::utils;
          loop {
              socket.send_to(&packet, client_addr)?;
              let mut ack_buffer = [0; HEADER_SIZE];
-             println!("{:?}",socket);
+            //  println!("{:?}",socket);
              match socket.recv_from(&mut ack_buffer) {
                  Ok(_) => {
                      let ack_seq_number = usize::from_be_bytes(ack_buffer.try_into().unwrap());
@@ -97,10 +97,10 @@ use common_lib::utils;
  
  
      while !end_of_transmission_received {
-        println!("Waiting for data...");
+        // println!("Waiting for data...");
          match socket.recv_from(&mut buffer) {
              Ok((size,_)) => {
-                println!("Received data: {} bytes", size);
+                // println!("Received data: {} bytes", size);
                  size_opt = Some(size);
  
                  // Check if the size of received data is less than HEADER_SIZE
@@ -189,7 +189,7 @@ use common_lib::utils;
          // Save and process the image
  
      img.save(&encoded_image_path).expect("Failed to save the image");
-     println!("done Encoding \n");
+    //  println!("done Encoding \n");
      let src= "127.0.0.1:9876".parse::<SocketAddr>().expect("Failed to parse server address");
      let values :i32 =55;
      let message=values.to_be_bytes();
@@ -203,23 +203,23 @@ use common_lib::utils;
  fn handle_incoming(socket: &UdpSocket,mut count : u32 , servers: &mut Queue<i32>) -> u32 {
      let mut buffer = [0; 512];
      loop {
-        println!("{:?}",socket);
+        // println!("{:?}",socket);
          let (size, src_addr) = socket.recv_from(&mut buffer).expect("Failed to receive message");
-         println!("wrong recieve! {},{}",size,src_addr);
+        //  println!("wrong recieve! {},{}",size,src_addr);
          let message = str::from_utf8(&buffer[..size]).unwrap().trim().to_string();
-         println!("{}",message);
+        //  println!("{}",message);
          if message == "Request"
          {
-            println!("Request Recieved");
+            // println!("Request Recieved");
             //pop w add to end 
             if let Some((old, new_head)) = servers.dequeue(){  
             //if condtion 
             if new_head == Some(&ID) 
             { 
-                println!("Server Selected");		
+                // println!("Server Selected");		
                 count = count + 1;
                     // send back to the client
-                    let ack_message =ID.to_be_bytes();
+                    let ack_message =(ID-1).to_be_bytes();
                     socket.send_to(&ack_message, &src_addr);
                     println!("ID sent {}",ID);
                     receive_image(&socket , &src_addr );
@@ -237,8 +237,9 @@ fn main() {
     //build el queue 
     let mut servers: Queue<i32> = Queue::new();
     servers.enqueue(1);
-    servers.enqueue(2);
-    servers.enqueue(3);
+    servers.enqueue(1);
+    servers.enqueue(1);
+    servers.enqueue(1);
 
     let flag = Arc::new(Mutex::new(false));
     let flag_clone = Arc::clone(&flag);

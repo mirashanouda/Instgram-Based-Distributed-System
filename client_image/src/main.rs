@@ -50,8 +50,8 @@ fn receive_image_from_server(socket: &UdpSocket, save_path: &str) -> io::Result<
                 eprintln!("Failed to send ACK: {}", e);
                 continue;
             }
-            println!("{:?}",socket);
-            println!("Sending ACK for sequence {}", sequence_number);
+            // println!("{:?}",socket);
+            // println!("Sending ACK for sequence {}", sequence_number);
 /////////////////////////////////////////////////////////////////////////////////////
 		},
 		Err(e) => {
@@ -61,7 +61,7 @@ fn receive_image_from_server(socket: &UdpSocket, save_path: &str) -> io::Result<
 	    };
 	}
 
-    println!("Done receiving");
+    // println!("Done receiving");
 
     // Reassemble and save the image as before
     let mut complete_image = Vec::new();
@@ -96,7 +96,7 @@ fn send_image_to_server(server_address: &SocketAddr, image_path: &str ,socket: &
     // Wait for ACK for the name packet here (similar to how you wait for ACKs below)
 
     //Start of sending the image itself
-    println!("Sending Image");
+    // println!("Sending Image");
     let mut file = File::open(image_path)?;
     let mut buffer = Vec::new();
     file.read_to_end(&mut buffer)?;
@@ -109,14 +109,14 @@ fn send_image_to_server(server_address: &SocketAddr, image_path: &str ,socket: &
         let mut packet = Vec::with_capacity(HEADER_SIZE + chunk.len());
         packet.extend_from_slice(&i.to_be_bytes()); // Add sequence number as header
         packet.extend_from_slice(chunk);
-        println!("Done chunking");
+        // println!("Done chunking");
         loop {
-            println!("start ACK");
+            // println!("start ACK");
             socket.send_to(&packet, server_address)?;
             let mut ack_buffer = [0; HEADER_SIZE];
             match socket.recv_from(&mut ack_buffer) {
                 Ok(_) => {
-                    println!("ACK");
+                    // println!("ACK");
                     let ack_seq_number = usize::from_be_bytes(ack_buffer.try_into().unwrap());
                     if ack_seq_number == i {
                         break; // Correct ACK received, proceed to next chunk
@@ -130,13 +130,13 @@ fn send_image_to_server(server_address: &SocketAddr, image_path: &str ,socket: &
             }
         }
     }
-    println!("Done ACK");
+    // println!("Done ACK");
     // Send end-of-transmission notification
     let mut eot_packet = Vec::with_capacity(HEADER_SIZE);
     eot_packet.extend_from_slice(&END_OF_TRANSMISSION.to_be_bytes());
     eot_packet.extend(vec![0; HEADER_SIZE - eot_packet.len()]);
     socket.send_to(&eot_packet, server_address)?;
-    println!("Done");
+    // println!("Done");
     Ok(())
 }
 
@@ -170,15 +170,15 @@ fn recive_ack(socket: &UdpSocket,ser_list: &Vec<&str>)
             match socket.recv_from(&mut ack_buffer) {
                 Ok(_) => {
                     let ack_id_number = u32::from_be_bytes(ack_buffer);
-                    let ack_id_number_usize  =ack_id_number as usize;
-                        //println!("Message recived from {}",ser_list[ack_id_number_usize-1]);
-                        select_server(ser_list[ack_id_number_usize-1],socket); //send the socket ?
+                    let ack_id_number_usize = ack_id_number as usize;
+                        println!("recieved ID = {}",ack_id_number_usize);
+                        select_server(ser_list[ack_id_number_usize],socket); //send the socket ?
             	},
                 Err(e) => return (), // Some other error
            }
 }     
 
-fn recive_ready(socket: &UdpSocket)
+fn recive_ready(socket: &UdpSocket,image_name:&str,i: &u32)
 {
     let mut ack_buffer=[0;4];
     loop {
@@ -188,8 +188,9 @@ fn recive_ready(socket: &UdpSocket)
             let message_usize  = message as usize;
             if message_usize == 55
             {
-            //println!("Recived 55");
-            if let Err(e) = receive_image_from_server(&socket, "server_output.png") 
+            println!("Recived 55");
+            let output_img =  format!("encrypted_{}_{}.png", image_name,i);
+            if let Err(e) = receive_image_from_server(&socket, &output_img) 
             {
                 println!("Failed to receive image: {}", e);
             }
@@ -205,15 +206,15 @@ fn recive_ready(socket: &UdpSocket)
              
 fn main() {
     let ser_list = vec![
-        "10.40.54.24:65432",
+        // "10.40.54.24:65432",
         "127.0.0.1:65432",
-        "10.40.63.13:65432",
+        // "10.40.63.13:65432",
     ];
 
     let server_addresses = vec![
-        "10.40.54.24:65432",
+        // "10.40.54.24:65432",
         "127.0.0.1:65432",
-        "10.40.63.13:65432",
+        // "10.40.63.13:65432",
     ]
     .into_iter()
     .map(|addr| addr.parse::<SocketAddr>().expect("Failed to parse server address"))
@@ -221,15 +222,17 @@ fn main() {
     
     //list of path to image 
     let req_port = 65431;
+    let image_path = "/home/mira/Distributed/Instgram-Based-Distributed-System/client_image/src/image1.png";
+    let image_name = image_path.rsplit('/').next().unwrap_or(image_path);
 
     let socket = UdpSocket::bind(format!("0.0.0.0:{}", req_port)).expect("Failed to bind socket");
-    for address in server_addresses {
-        // Directly call the function here without spawning a new thread
-        send_message_to_server(&socket,&address,"Request".to_string());
-    }
-
-    recive_ack(&socket, &ser_list);
-    let socket = UdpSocket::bind("0.0.0.0:9876").expect("Failed to bind socket");
-    recive_ready(&socket);
-    
+    for i in 0..4 {
+        for address in &server_addresses {
+            // Directly call the function here without spawning a new thread
+            send_message_to_server(&socket,&address,"Request".to_string());   
+        }
+        recive_ack(&socket, &ser_list);
+        let socket = UdpSocket::bind("0.0.0.0:9876").expect("Failed to bind socket");
+        recive_ready(&socket,&image_name,&i);
+    }   
 }
