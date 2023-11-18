@@ -69,11 +69,11 @@ pub fn handle_regular_requests(
     let mut handled: bool = true;
     let mut message = String::from("");
     loop {
-        // if handled {
+        if handled {
             // deque from requests buff
             let (size, _src_addr) = socket.recv_from(&mut buffer).expect("Failed to receive message");
             message = str::from_utf8(&buffer[..size]).unwrap().trim().to_string();
-		// }
+		}
 		if let Some((old, new_head)) = servers.dequeue() {
             let token = flg.lock().unwrap();
 
@@ -86,7 +86,7 @@ pub fn handle_regular_requests(
                 } 
                 // Case 2: Top of the queue and Offline
                 else {
-					println!("Offline :( at req - {}", message);
+					println!("Offline :(");
                     send_offline(id, online_servers);
 					handled = false;
 					// thread::sleep(Duration::from_secs(2 as u64));
