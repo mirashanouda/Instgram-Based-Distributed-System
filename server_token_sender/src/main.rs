@@ -17,44 +17,6 @@ static ONLINE_SERVERS: [&str; 2] = [
     "127.0.0.1:2232",
 ];
 
-fn handle_regular_requests(socket: &UdpSocket, servers: &mut Queue<i32>, flg: Arc<Mutex<bool>>, off_server: Arc<Mutex<i32>>) {
-    let mut buffer = [0; 512];
-	let mut size = 512;
-	let mut _src_addr;
-	let mut handled: bool = true;
-    loop {
-		if handled {
-        	(size, _src_addr) = socket.recv_from(&mut buffer).expect("Failed to receive message");
-		}
-		if let Some((old, new_head)) = servers.dequeue() {
-            let token = flg.lock().unwrap();
-            
-            if new_head == Some(&ID) {
-                // Case 1: Top of the queue and not offline
-                if *token == false {
-                    let message = str::from_utf8(&buffer[..size]).unwrap().trim().to_string();
-                    println!("Handling request: {}", message);
-					handled = true;
-                } 
-                // Case 2: Top of the queue and Offline
-                else {
-					println!("Offline :(");
-					handled = false;
-                    // utils::send_offline(ID, ONLINE_SERVERS);
-					// thread::sleep(Duration::from_secs(2 as u64));
-					// utils::send_status(format!("online - {}", ID), ONLINE_SERVERS)
-                }
-            }
-			// Case 3: not top of the queue and online
-			// else {
-			// 	// handled = false;
-			// }
-            servers.enqueue(old);
-            drop(token);
-        }
-    }
-}
-
 fn token_handle(flag: Arc<Mutex<bool>>){
 	let token_port = 3230 + ID;
 	let next_token_port = 3231;
@@ -105,11 +67,13 @@ fn main() {
 	println!("Listening for requests on port {}", requests_port);
   	loop {
 		let socket = UdpSocket::bind(format!("0.0.0.0:{}", requests_port)).expect("Failed to bind socket");
-		handle_regular_requests(
+		utils::handle_regular_requests(
 			&socket,
 			&mut servers,
 			Arc::clone(&flag),
-			Arc::clone(&off_server)
+			Arc::clone(&off_server),
+			ID,
+			ONLINE_SERVERS
 		);
 	}
 }

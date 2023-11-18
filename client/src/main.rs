@@ -1,16 +1,14 @@
 use std::net::{UdpSocket, SocketAddr};
 use std::thread;
-use std::str;
-use std::io::{self, ErrorKind};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
-fn send_message_to_server(thread_id: usize, server_address: &SocketAddr, msg: String, cnt: u32) {
+fn send_message_to_server(_thread_id: usize, server_address: &SocketAddr, msg: String, cnt: u32) {
     let socket = UdpSocket::bind("0.0.0.0:0").expect("Failed to bind socket");
 
     for i in 0..cnt {
         let message = format!("{} - i = {}", msg, i);
         socket.send_to(message.as_bytes(), server_address).expect("Failed to send message");
-        thread::sleep(Duration::from_millis(5)); // Adjust this delay if needed
+        thread::sleep(Duration::from_millis(200)); // Adjust this delay if needed
     }
 }
 
@@ -34,7 +32,7 @@ fn main() {
             for i in 0..num_threads {
                 let server_address = address.clone();
                 let client_handle = thread::spawn(move || {
-                    send_message_to_server(i, &server_address, format!("Hello from thread {}", i), 50)
+                    send_message_to_server(i, &server_address, format!("thread {}", i), 50)
                 });
                 client_handles.push(client_handle);
             }
