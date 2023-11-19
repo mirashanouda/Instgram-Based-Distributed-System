@@ -78,9 +78,7 @@ fn receive_image_from_server(socket: &UdpSocket, save_path: &str) -> io::Result<
     let mut file = File::create(save_path)?;
     file.write_all(&complete_image)?;
     println!("Image completed!!!!!!!!!!!!!");
-  
-    Ok(()) 
-    
+    Ok(())
 }
 
    
@@ -204,31 +202,31 @@ fn recive_ready(socket: &UdpSocket,image_name:&str,i: &u32)
             else {println!("Received something else ");
         }
         }
-
 }
              
 fn main() {
     let ser_list = vec![
-        "10.40.54.24:65432",
-        "10.40.41.175:65432",
-        // "10.40.63.13:65432",
+        "127.0.0.1:1231",
+        "127.0.0.1:1231",
+        "127.0.0.1:1231",
     ];
 
     let server_addresses = vec![
-        "10.40.54.24:65432",
-        "10.40.41.175:65432",
-        // "10.40.63.13:65432",
+        "127.0.0.1:1231",
+        "127.0.0.1:1231",
+        "127.0.0.1:1231",
     ]
     .into_iter()
     .map(|addr| addr.parse::<SocketAddr>().expect("Failed to parse server address"))
     .collect::<Vec<_>>();
     
     //list of path to image 
-    let req_port = 65432;
+    let req_port = 1231;
     let image_path = "/home/mira/Distributed/Instgram-Based-Distributed-System/clinet_image/src/image1.png";
     let image_name = image_path.rsplit('/').next().unwrap_or(image_path);
     let img_port = req_port+1;
     let socket_req = UdpSocket::bind(format!("0.0.0.0:{}", req_port)).expect("Failed to bind socket");
+    let mut count = 0;
     for i in 0..4 {
         for address in &server_addresses {
             // Directly call the function here without spawning a new thread
@@ -237,5 +235,6 @@ fn main() {
         recive_ack(&socket_req, &ser_list);
         let socket_img = UdpSocket::bind(format!("0.0.0.0:{}", img_port)).expect("Failed to bind socket");
         recive_ready(&socket_img,&image_name,&i);
+        count = count + 1;
     }   
 }

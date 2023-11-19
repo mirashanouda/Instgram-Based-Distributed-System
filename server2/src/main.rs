@@ -8,17 +8,18 @@ use common_lib::utils;
 
 static ID: i32 = 2;
 
-//requests port: 1231, 1232, 1233
-//offline ports: 2231, 2232, 2233
-//token ports: 3231, 3232, 3233
+//requests port: 1231 -> 1111
+//offline ports: 2231 -> 2222
+//token ports: 3231 -> 3333
 
 static ONLINE_SERVERS: [&str; 2] = [
-	"127.0.0.1:2231",
-    "127.0.0.1:2233",
+	"127.0.0.1:2222",
+    "127.0.0.1:2222",
 ];
 
 fn main() {
-	let requests_port = 1230 + ID;
+	// let requests_port = 1230 + ID + 1;
+	let requests_port = 1111;
 
 	//build the servers queue
 	let mut servers: Queue<i32> = Queue::new();
@@ -35,11 +36,6 @@ fn main() {
 	let off_server_clone = Arc::clone(&off_server);
 	// launch a  thread for offline handler
 	thread::spawn(move || utils::offline_handler(off_server_clone, ID));
-
-	// let req_buff = Arc::new(Mutex::new(Queue::new()));
-	// let req_buff_clone = Arc::clone(&req_buff);
-	// // launch a  thread for offline handler
-	// thread::spawn(move || utils::buffer_requests(requests_port, req_buff_clone));
 
 	println!("Listening for requests on port {}", requests_port);
   	loop {

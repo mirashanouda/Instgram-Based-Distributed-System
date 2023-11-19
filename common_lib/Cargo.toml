@@ -7,3 +7,6 @@ edition = "2021"
 
 [dependencies]
 queues = "1.0.2"
+steganography = "1.0.2"
+image = "0.21.0"
+photon-rs = "0.3.2"
