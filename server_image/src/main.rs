@@ -32,8 +32,7 @@ use common_lib::utils;
  
  //edit ID for each server
  static ID: i32=1;
- 
- 
+
  const MAX_PACKET_SIZE: usize = 65535;
  const HEADER_SIZE: usize = 8; // Adjust according to your actual header size
  const END_OF_TRANSMISSION: usize = usize::MAX;
@@ -42,14 +41,14 @@ use common_lib::utils;
  
  fn send_image_to_client( client_addr: &SocketAddr, image_path: &str) -> io::Result<()> {
     println!(" client socket = {}", format!("{}:{}", client_addr.ip(), client_addr.port()));
-    
+
     let socket = UdpSocket::bind(format!("0.0.0.0:{}", client_addr.port())).expect("Failed to bind socket");
     
      let file = File::open(image_path)?;
      let mut buf_reader = BufReader::new(file);
      let mut buffer = Vec::new();
      buf_reader.read_to_end(&mut buffer)?;
- 
+
      socket.set_write_timeout(Some(Duration::from_millis(100)))?;
      socket.set_read_timeout(Some(ACK_TIMEOUT))?;
  
@@ -61,11 +60,11 @@ use common_lib::utils;
          loop {
              socket.send_to(&packet, client_addr)?;
              let mut ack_buffer = [0; HEADER_SIZE];
-             println!("{:?}",socket);
+            //  println!("{:?}",socket);
              match socket.recv_from(&mut ack_buffer) {
                  Ok(_) => {
                      let ack_seq_number = usize::from_be_bytes(ack_buffer.try_into().unwrap());
-                     println!("Ach seq = {}", ack_seq_number);
+                    //  println!("Ach seq = {}", ack_seq_number);
                      if ack_seq_number == i {
                          break; // Correct ACK received, proceed to next chunk
                      }
@@ -84,8 +83,8 @@ use common_lib::utils;
      eot_packet.extend_from_slice(&END_OF_TRANSMISSION.to_be_bytes());
      socket.send_to(&eot_packet, client_addr)?;
 
-    //  let mut buffer = [0; 512];
-    //  let (size, _) = socket.recv_from(&mut buffer).expect("Failed to receive message");
+     let mut buffer = [0; 512];
+     let (size, _) = socket.recv_from(&mut buffer).expect("Failed to receive message");
  
      Ok(())
  }
@@ -105,14 +104,14 @@ use common_lib::utils;
         // println!("Waiting for data...");
          match socket.recv_from(&mut buffer) {
              Ok((size,_)) => {
-                println!("Received data: {} bytes", size);
+                // println!("Received data: {} bytes", size);
                  size_opt = Some(size);
  
                  // Check if the size of received data is less than HEADER_SIZE
-                //  if size < HEADER_SIZE {
-                //     println!("Data size less than HEADER_SIZE, continuing...");
-                //      continue;
-                //  }
+                 if size < HEADER_SIZE {
+                    println!("Data size less than HEADER_SIZE, continuing...");
+                     continue;
+                 }
  
                  let sequence_number = match buffer[..HEADER_SIZE].try_into() {
                      Ok(bytes) => usize::from_be_bytes(bytes),
@@ -215,7 +214,7 @@ use common_lib::utils;
          let (size, src_addr) = socket.recv_from(&mut buffer).expect("Failed to receive message");
         //  println!("wrong recieve! {},{}",size,src_addr);
          let message = str::from_utf8(&buffer[..size]).unwrap().trim().to_string();
-        //  println!("{}",message);
+         println!("{}",message);
          if message == "Request"
          {
             // println!("Request Recieved");
@@ -231,8 +230,10 @@ use common_lib::utils;
                     socket.send_to(&ack_message, &src_addr);
                     println!("ID sent {}",ID);
                     receive_image(&socket , &src_addr );
-                }
+            }
+            println!("old - {}", old);
             servers.enqueue(old);  
+            println!("got added");
         }
     }
  }
@@ -243,9 +244,7 @@ fn main() {
     //build el queue 
     let mut servers: Queue<i32> = Queue::new();
     servers.enqueue(1);
-    servers.enqueue(1);
-    servers.enqueue(1);
-    servers.enqueue(1);
+    servers.enqueue(2);
 
     let flag = Arc::new(Mutex::new(false));
     let flag_clone = Arc::clone(&flag);
