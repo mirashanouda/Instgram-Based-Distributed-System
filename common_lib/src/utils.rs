@@ -48,12 +48,12 @@ pub fn failure_token_handle(flag: Arc<Mutex<bool>>, next_token_add: &str){
 		let mut token: std::sync::MutexGuard<'_, bool> = flag.lock().unwrap();
 		*token = true;
 		drop(token);
-		println!("I have the token now :( Yalaaaaahwy");
+		//println!("I have the token now :( Yalaaaaahwy");
 		thread::sleep(Duration::from_secs(2 as u64));
 		token = flag.lock().unwrap();
 		*token = false;
 		drop(token);
-		println!("Released token now :)");
+		//println!("Released token now :)");
 		token_socket.send_to(msg.as_bytes(), next_server).expect("Failed to send message");
     }
 }
@@ -83,12 +83,12 @@ pub fn working_token_handle(off_server: Arc<Mutex<i32>>, work_flag: Arc<Mutex<bo
         let mut work_token = work_flag.lock().unwrap();
         *work_token = true;
         drop(work_token);
-        println!("I am working now yaaaaay");
+        //println!("I am working now yaaaaay");
         thread::sleep(Duration::from_millis(1000 as u64));
         work_token = work_flag.lock().unwrap();
         *work_token = false;
         drop(work_token);
-        println!("Released work token ^^)");
+        //println!("Released work token ^^)");
 
         // checking next server:
         let off_server_id = off_server.lock();
@@ -375,14 +375,14 @@ pub fn handle_requests_v2(
        
         let (size, _src_addr) = socket.recv_from(&mut buffer).expect("Failed to receive message");
         message = str::from_utf8(&buffer[..size]).unwrap().trim().to_string();
-        
+        //println!("Request recieved");
         let work_token = work_flg.lock().unwrap();
         let offline_token = offline_flg.lock().unwrap();
         if *work_token == true {
             println!("Handling request: {}", message);
         }
         else if *offline_token == true{
-            let socket = UdpSocket::bind("0.0.0.0:0").expect("Failed to bind socket");
+		println!("offline at {}", message);
             send_offline (servers[id as usize], online_servers);
         }
         drop(work_token);

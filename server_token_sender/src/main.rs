@@ -6,26 +6,27 @@ use std::sync::{Arc, Mutex};
 use common_lib::queue::Queue;
 use common_lib::utils;
 
-static ID: i32 = 3;
+static ID: i32 = 2;
 
 //requests port: 1231 -> 1111
 //offline ports: 2231 -> 2222
 //token ports: 3231 -> 3333
 
 static ONLINE_SERVERS: [&str; 2] = [
-	"10.40.32.49:2222",
-    "10.40.37.106:2222",
+	"10.40.54.22:2222",
+    	"10.40.49.16:2222"
 ];
 
 static SERVERS: [&str; 3] = [
-	"10.40.32.49",
-    "10.40.37.106",
-    "10.40.37.106"
+    	"10.40.54.22",
+    	"10.40.49.16",
+    	"10.40.46.114",
 ];
 
 fn failure_token_handle_sender(flag: Arc<Mutex<bool>>, next_token_add: &str){
 	let token_port = 3333;
     let next_server: SocketAddr = format!("{}:{}", next_token_add, token_port).parse().expect("Failed to parse server address");
+println!("{:?}", next_server);
     let token_socket = UdpSocket::bind(format!("0.0.0.0:{}", token_port)).expect("Failed to bind socket");
     let msg = "ball";
     token_socket.send_to(msg.as_bytes(), next_server).expect("Failed to send message");
@@ -38,12 +39,12 @@ fn failure_token_handle_sender(flag: Arc<Mutex<bool>>, next_token_add: &str){
 		let mut token = flag.lock().unwrap();
 		*token = true;
 		drop(token);
-		println!("I have the token now :( Yalaaaaahwy");
+		//println!("I have the token now :( Yalaaaaahwy");
 		thread::sleep(Duration::from_millis(2000 as u64));
 		token = flag.lock().unwrap();
 		*token = false;
 		drop(token);
-		println!("Released token now :)");
+		//println!("Released token now :)");
 		token_socket.send_to(msg.as_bytes(), next_server).expect("Failed to send message");
     }
 }
@@ -62,8 +63,8 @@ fn working_token_handle_sender(off_server: Arc<Mutex<i32>>, work_flag: Arc<Mutex
 		* if no token:
 			* recieve token (listening)
 	 */
-	let token_port = 3333;
-    let next_server: SocketAddr = format!("{}:{}", next_add, token_port).parse().expect("Failed to parse server address");
+	let token_port = 6666;
+    let next_server: SocketAddr = format!("{}:{}", servers[next_add as usize], token_port).parse().expect("Failed to parse server address");
     let token_socket = UdpSocket::bind(format!("0.0.0.0:{}", token_port)).expect("Failed to bind socket");
     let msg = "ball";
 	// initial send.
@@ -77,12 +78,12 @@ fn working_token_handle_sender(off_server: Arc<Mutex<i32>>, work_flag: Arc<Mutex
 		let mut work_token = work_flag.lock().unwrap();
 		*work_token = true;
 		drop(work_token);
-		println!("I am working now yaaaaay");
+		//println!("I am working now yaaaaay");
 		thread::sleep(Duration::from_millis(1000 as u64));
 		work_token = work_flag.lock().unwrap();
 		*work_token = false;
 		drop(work_token);
-		println!("Released work token ^^)");
+		//println!("Released work token ^^)");
 
 		// checking next server:
         let off_server_id = off_server.lock();
@@ -106,8 +107,8 @@ fn working_token_handle_sender(off_server: Arc<Mutex<i32>>, work_flag: Arc<Mutex
 
 fn main() {
 	let requests_port = 4444;
-	let next_server = 1;
-	let next_next_server = 2;
+	let next_server = 0;
+	let next_next_server = 1;
 
 	let off_flag = Arc::new(Mutex::new(false));
 	let off_flag_clone = Arc::clone(&off_flag);
@@ -121,7 +122,7 @@ fn main() {
 	let off_server_clone = Arc::clone(&off_server);
 	let work_flag = Arc::new(Mutex::new(false));
 	let work_flag_clone = Arc::clone(&work_flag);
-	thread::spawn(move || working_token_handle_sender(off_server_clone, work_flag_clone,  next_server, next_next_server, SERVERS));
+	thread::spawn(move || working_token_handle_sender(off_server_clone, work_flag_clone,  next_server as i32, next_next_server, SERVERS));
 
 	println!("Listening for requests on port {}", requests_port);
   	loop {
