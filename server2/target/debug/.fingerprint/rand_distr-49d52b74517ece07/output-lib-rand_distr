@@ -1,0 +1,46 @@
+thread 'rustc' panicked at /rustc/cc66ad468955717ab92600c770da8c1601a4ff33/compiler/rustc_serialize/src/opaque.rs:328:42:
+range start index 3484294 out of range for slice of length 2097152
+stack backtrace:
+   0: rust_begin_unwind
+             at /rustc/cc66ad468955717ab92600c770da8c1601a4ff33/library/std/src/panicking.rs:595:5
+   1: core::panicking::panic_fmt
+             at /rustc/cc66ad468955717ab92600c770da8c1601a4ff33/library/core/src/panicking.rs:67:14
+   2: core::slice::index::slice_start_index_len_fail_rt
+             at /rustc/cc66ad468955717ab92600c770da8c1601a4ff33/library/core/src/slice/index.rs:52:5
+   3: core::slice::index::slice_start_index_len_fail
+             at /rustc/cc66ad468955717ab92600c770da8c1601a4ff33/library/core/src/slice/index.rs:40:9
+   4: <rustc_metadata::rmeta::decoder::MetadataBlob>::get_header
+   5: <rustc_metadata::locator::CrateLocator>::extract_one
+   6: <rustc_metadata::locator::CrateLocator>::extract_lib
+   7: <rustc_metadata::locator::CrateLocator>::find_library_crate
+   8: <rustc_metadata::locator::CrateLocator>::maybe_load_library_crate
+   9: <rustc_metadata::creader::CrateLoader>::load
+  10: <rustc_metadata::creader::CrateLoader>::maybe_resolve_crate
+  11: <rustc_metadata::creader::CrateLoader>::maybe_resolve_crate
+  12: <rustc_metadata::creader::CrateLoader>::maybe_resolve_crate
+  13: <rustc_metadata::creader::CrateLoader>::maybe_resolve_crate
+  14: <rustc_resolve::Resolver>::early_resolve_ident_in_lexical_scope
+  15: <rustc_resolve::Resolver>::resolve_path_with_ribs
+  16: <rustc_resolve::Resolver as rustc_expand::base::ResolverExpand>::resolve_imports
+  17: <rustc_expand::expand::MacroExpander>::fully_expand_fragment
+  18: <rustc_expand::expand::MacroExpander>::expand_crate
+  19: <rustc_session::session::Session>::time::<rustc_ast::ast::Crate, rustc_interface::passes::configure_and_expand::{closure#1}>
+  20: rustc_interface::passes::resolver_for_lowering
+      [... omitted 2 frames ...]
+  21: <rustc_interface::queries::QueryResult<&rustc_middle::ty::context::GlobalCtxt>>::enter::<&rustc_data_structures::steal::Steal<(rustc_middle::ty::ResolverAstLowering, alloc::rc::Rc<rustc_ast::ast::Crate>)>, rustc_driver_impl::run_compiler::{closure#1}::{closure#2}::{closure#4}>
+  22: <rustc_interface::interface::Compiler>::enter::<rustc_driver_impl::run_compiler::{closure#1}::{closure#2}, core::result::Result<core::option::Option<rustc_interface::queries::Linker>, rustc_span::ErrorGuaranteed>>
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+error: the compiler unexpectedly panicked. this is a bug.
+
+note: we would appreciate a bug report: https://github.com/rust-lang/rust/issues/new?labels=C-bug%2C+I-ICE%2C+T-compiler&template=ice.md
+
+note: rustc 1.73.0 (cc66ad468 2023-10-03) running on x86_64-unknown-linux-gnu
+
+note: compiler flags: --crate-type lib -C embed-bitcode=no -C debuginfo=2
+
+note: some of the compiler flags provided by cargo are hidden
+
+query stack during panic:
+#0 [resolver_for_lowering] getting the resolver for lowering
+end of query stack
