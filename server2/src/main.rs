@@ -3,7 +3,6 @@ use std::str;
 use std::thread;
 // use std::time::Duration;
 use std::sync::{Arc, Mutex};
-use common_lib::queue::Queue;
 use common_lib::utils;
 
 static ID: i32 = 2;
@@ -17,36 +16,42 @@ static ONLINE_SERVERS: [&str; 2] = [
     "127.0.0.1:2222",
 ];
 
+static SERVERS: [&str; 3] = [
+	"10.40.32.49",
+    "10.40.37.106",
+    "10.40.37.106"
+];
+
 fn main() {
-	// let requests_port = 1230 + ID + 1;
-	let requests_port = 1111;
+	let requests_port = 4444;
+	let next_server = 3;
+	let next_next_server = 1;
 
-	//build the servers queue
-	let mut servers: Queue<i32> = Queue::new();
-	servers.enqueue(1);
-	servers.enqueue(2);
-	servers.enqueue(3);
-
-	let flag = Arc::new(Mutex::new(false));
-	let flag_clone = Arc::clone(&flag);
-	// launch a thread for token handler
-	thread::spawn(move || utils::token_handle(flag_clone, ID, ID+1));
+	let off_flag = Arc::new(Mutex::new(false));
+	let off_flag_clone = Arc::clone(&off_flag);
+	thread::spawn(move || utils::failure_token_handle(off_flag_clone, SERVERS[next_server as usize]));
 
 	let off_server = Arc::new(Mutex::new(0));
 	let off_server_clone = Arc::clone(&off_server);
 	// launch a  thread for offline handler
-	thread::spawn(move || utils::offline_handler(off_server_clone, ID));
+	thread::spawn(move || utils::who_offline_handler(off_server_clone, ID));
+
+	let off_server_clone = Arc::clone(&off_server);
+	let work_flag = Arc::new(Mutex::new(false));
+	let work_flag_clone = Arc::clone(&work_flag);
+	thread::spawn(move || utils::working_token_handle(off_server_clone, work_flag_clone, next_server, next_next_server, SERVERS));
 
 	println!("Listening for requests on port {}", requests_port);
   	loop {
 		let socket = UdpSocket::bind(format!("0.0.0.0:{}", requests_port)).expect("Failed to bind socket");
-		utils::handle_regular_requests(
+		// println!("socket = {:?}", socket);
+		utils::handle_requests_v2(
 			&socket,
-			&mut servers,
-			Arc::clone(&flag),
-			Arc::clone(&off_server),
+			ONLINE_SERVERS,
+			Arc::clone(&work_flag),
+			Arc::clone(&off_flag),
 			ID,
-			ONLINE_SERVERS
+			SERVERS
 		);
 	}
 }

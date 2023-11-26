@@ -13,22 +13,23 @@ const END_OF_TRANSMISSION: usize = usize::MAX;
 const ACK_TIMEOUT: Duration = Duration::from_millis(500);
 
 fn receive_image_from_server(socket: &UdpSocket, save_path: &str) -> io::Result<()> {
-    // println!("Receiving...");
-    // println!("{:?}", socket);
+    println!("Receiving...");
+    println!("{:?}", socket);
     let mut file_storage: HashMap<usize, Vec<u8>> = HashMap::new();
     let mut buffer = [0u8; CHUNK_SIZE + HEADER_SIZE];
     let mut end_of_transmission_received = false;
     let mut src_img : SocketAddr;
 	while !end_of_transmission_received {
-	    // println!("Waiting for data...");
+	    println!("Waiting for data...");
 	    match socket.recv_from(&mut buffer) {
 		Ok((size, src_img)) => {
-		    // println!("Received data: {} bytes", size);
+		    println!("Received data: {} bytes", size);
 		    //if size < HEADER_SIZE {
 		    //    println!("Data size less than HEADER_SIZE, continuing...");
 		    //    continue;
 		    //}
             
+            println!("before seq");
             let sequence_number = match buffer[..HEADER_SIZE].try_into() {
                 Ok(bytes) => usize::from_be_bytes(bytes),
                 Err(e) => {
@@ -36,9 +37,9 @@ fn receive_image_from_server(socket: &UdpSocket, save_path: &str) -> io::Result<
                     continue;
                 }
             };
-            // println!("Socket: {:?}", socket);
+            println!("Socket: {:?}", socket);
 
-            // println!("Sequence Number: {}", sequence_number);
+            println!("Sequence Number: {}", sequence_number);
 
 
             if sequence_number == END_OF_TRANSMISSION {
@@ -78,7 +79,9 @@ fn receive_image_from_server(socket: &UdpSocket, save_path: &str) -> io::Result<
     let mut file = File::create(save_path)?;
     file.write_all(&complete_image)?;
     println!("Image completed!!!!!!!!!!!!!");
-    Ok(())
+  
+    Ok(()) 
+    
 }
 
    
@@ -173,18 +176,18 @@ fn recive_ack(socket: &UdpSocket,ser_list: &Vec<&str>)
                 Ok(_) => {
                     let ack_id_number = u32::from_be_bytes(ack_buffer);
                     let ack_id_number_usize = ack_id_number as usize;
-                        println!("recieved ID = {}", ack_id_number_usize);
+                        println!("recieved ID = {}",ack_id_number_usize);
                         select_server(ser_list[ack_id_number_usize],socket); //send the socket ?
             	},
                 Err(e) => return (), // Some other error
            }
-    // return ser_list[ack_id_number_usize];
 }     
 
 fn recive_ready(socket: &UdpSocket,image_name:&str,i: &u32)
 {
     let mut ack_buffer=[0;4];
     loop {
+	
         let (size, _) = socket.recv_from(&mut ack_buffer).expect("Failed to receive message");
             let message = u32::from_be_bytes(ack_buffer);
             let message_usize  = message as usize;
@@ -199,42 +202,42 @@ fn recive_ready(socket: &UdpSocket,image_name:&str,i: &u32)
             break;
 
             }
-            else {println!("Received something else ");
+            else {println!("Received something else ");}
+
+   
         }
-        }
+
 }
              
 fn main() {
     let ser_list = vec![
-        "127.0.0.1:1231",
-        "127.0.0.1:1231",
-        "127.0.0.1:1231",
+        // "10.40.54.24:65432",
+        "10.40.37.106:65432",
+        // "10.40.63.13:65432",
     ];
 
     let server_addresses = vec![
-        "127.0.0.1:1231",
-        "127.0.0.1:1231",
-        "127.0.0.1:1231",
+        // "10.40.54.24:65432",
+        "10.40.37.106:65432",
+        // "10.40.63.13:65432",
     ]
     .into_iter()
     .map(|addr| addr.parse::<SocketAddr>().expect("Failed to parse server address"))
     .collect::<Vec<_>>();
     
     //list of path to image 
-    let req_port = 1231;
-    let image_path = "/home/mira/Distributed/Instgram-Based-Distributed-System/clinet_image/src/image1.png";
+    let req_port = 1234;
+    let image_path = "/home/mira/Distributed/Instgram-Based-Distributed-System/clinet_image/src/main.rs";
     let image_name = image_path.rsplit('/').next().unwrap_or(image_path);
     let img_port = req_port+1;
     let socket_req = UdpSocket::bind(format!("0.0.0.0:{}", req_port)).expect("Failed to bind socket");
-    let mut count = 0;
     for i in 0..4 {
         for address in &server_addresses {
             // Directly call the function here without spawning a new thread
             send_message_to_server(&socket_req,&address,"Request".to_string());   
         }
         recive_ack(&socket_req, &ser_list);
-        let socket_img = UdpSocket::bind(format!("0.0.0.0:{}", img_port)).expect("Failed to bind socket");
+        let socket_img = UdpSocket::bind(format!("0.0.0.0:{}",img_port)).expect("Failed to bind socket");
         recive_ready(&socket_img,&image_name,&i);
-        count = count + 1;
     }   
 }

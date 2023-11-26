@@ -32,12 +32,12 @@ const ACK_TIMEOUT: Duration = Duration::from_millis(500);
 //offline ports: 2222
 //token ports: 3333
 
-pub fn token_handle(flag: Arc<Mutex<bool>>, id: i32, nxt_id: i32){
-	let token_port = 3230 + id;
-	let next_token_port = 3230 + nxt_id;
-	let next_token_add = "127.0.0.1"; //TODO change IP
+// TODO:
+// vec of servers IPs to be shared globaly --> all 3 IPs
 
-	let next_server: SocketAddr = format!("{}:{}", next_token_add, next_token_port).parse().expect("Failed to parse server address");
+pub fn failure_token_handle(flag: Arc<Mutex<bool>>, next_token_add: &str){
+	let token_port = 3333;
+	let next_server: SocketAddr = format!("{}:{}", next_token_add, token_port).parse().expect("Failed to parse server address");
     let token_socket = UdpSocket::bind(format!("0.0.0.0:{}", token_port)).expect("Failed to bind socket");
     let msg = "ball";
     
@@ -45,32 +45,83 @@ pub fn token_handle(flag: Arc<Mutex<bool>>, id: i32, nxt_id: i32){
 		let mut buffer = [0; 512];
 		let (size, _) = token_socket.recv_from(&mut buffer).expect("Failed to receive message");
 		let _ = str::from_utf8(&buffer[..size]).unwrap().trim().to_string();
-		let mut token = flag.lock().unwrap();
+		let mut token: std::sync::MutexGuard<'_, bool> = flag.lock().unwrap();
 		*token = true;
 		drop(token);
-		// println!("I have the token now :( Yalaaaaahwy");
+		println!("I have the token now :( Yalaaaaahwy");
 		thread::sleep(Duration::from_secs(2 as u64));
 		token = flag.lock().unwrap();
 		*token = false;
 		drop(token);
-		// println!("Released token now :)");
+		println!("Released token now :)");
 		token_socket.send_to(msg.as_bytes(), next_server).expect("Failed to send message");
     }
 }
 
-pub fn send_offline (msg: i32, online_servers: [&str; 2]){
+pub fn working_token_handle(off_server: Arc<Mutex<i32>>, work_flag: Arc<Mutex<bool>>, next_add: i32, next_next_add: i32, servers: [&str; 3]){
+    /*
+    * if received a request.
+    * if online server:
+        * check if I have token (I should receive a token before)
+            * handle_incomming
+            if the next is not offline:
+                * pass to it
+            else:
+                * pass to the next
+        * if no token:
+            * recieve token (listening)
+    */
+
+    let token_port = 3333;
+    let token_socket = UdpSocket::bind(format!("0.0.0.0:{}", token_port)).expect("Failed to bind socket");
+    let msg = "ball";
+
+    loop{
+        let mut buffer = [0; 512];
+        let (size, _) = token_socket.recv_from(&mut buffer).expect("Failed to receive message");
+        let _ = str::from_utf8(&buffer[..size]).unwrap().trim().to_string();
+        let mut work_token = work_flag.lock().unwrap();
+        *work_token = true;
+        drop(work_token);
+        println!("I am working now yaaaaay");
+        thread::sleep(Duration::from_millis(1000 as u64));
+        work_token = work_flag.lock().unwrap();
+        *work_token = false;
+        drop(work_token);
+        println!("Released work token ^^)");
+
+        // checking next server:
+        let off_server_id = off_server.lock();
+        match off_server_id {
+            Ok(off_id) => {
+                if *off_id == next_add {
+                    token_socket.send_to(msg.as_bytes(), format!("{}:{}", servers[next_next_add as usize], token_port)).expect("Failed to send message");
+                }
+                else {
+                    token_socket.send_to(msg.as_bytes(), format!("{}:{}", servers[next_add as usize], token_port)).expect("Failed to send message");
+                }
+            }
+            Err(e) => {
+                // Handle the error if lock cannot be acquired (e.g., if another thread has panicked while holding the lock)
+                println!("Failed to acquire the lock: {:?}", e);
+            }
+        }
+    }
+}
+
+pub fn send_offline (off_server: &str, online_servers: [&str; 2]){
     let socket = UdpSocket::bind("0.0.0.0:0").expect("Failed to bind socket");
 	// send to all servers my current status (offline/online)
 	for server in online_servers {
 		let server_add: SocketAddr = server.parse().expect("Failed to parse server address");
-		socket.send_to(&msg.to_be_bytes(), server_add).unwrap();
+		socket.send_to(off_server.as_bytes(), server_add).unwrap();
 		thread::sleep(Duration::from_millis(5));
 	}
 }
 
-pub fn offline_handler(off_server: Arc<Mutex<i32>> , id: i32) {
-    let offline_port = 2230 + id;
-    let offline_add = format!("127.0.0.1:{}", offline_port);
+pub fn who_offline_handler(off_server: Arc<Mutex<i32>> , id: i32) {
+    let offline_port = 2222;
+    let offline_add = format!("0.0.0.0:{}", offline_port);
     let socket = UdpSocket::bind(offline_add).expect("Failed to bind socket");
     // listen for messages from other clients and print them out
     loop{
@@ -79,74 +130,6 @@ pub fn offline_handler(off_server: Arc<Mutex<i32>> , id: i32) {
         let mut off_server_id = off_server.lock().unwrap();
         *off_server_id = i32::from_be_bytes(buffer);
         // println!("Sleep server is: {}", off_server_id);
-    }
-}
-
-pub fn handle_regular_requests(
-    socket: &UdpSocket,
-    servers: &mut Queue<i32>, 
-    flg: Arc<Mutex<bool>>, 
-    off_server: Arc<Mutex<i32>>, 
-    id: i32,
-    online_servers: [&str; 2])
-{
-    let mut buffer = [0; 512];
-    // let mut size;
-    let mut handled: bool = true;
-    let mut message = String::from("");
-    let mut src_addr = "127.0.0.1:8080".parse().expect("Invalid address");
-    let mut size;
-    loop {
-        if handled {
-            // request handler
-            (size, src_addr) = socket.recv_from(&mut buffer).expect("Failed to receive message");
-            message = str::from_utf8(&buffer[..size]).unwrap().trim().to_string();
-		}
-        if message == "Request" {
-		    if let Some((old, new_head)) = servers.dequeue() {
-                let token = flg.lock().unwrap();
-                if new_head == Some(&id) {
-                    // println!("I am top {}", id);
-                    // Case 1: Top of the queue and not offline
-                    if *token == false {
-                        let ack_message =(id-1).to_be_bytes();
-                        socket.send_to(&ack_message, &src_addr);
-                        println!("ID sent {}",id);
-                        receive_image(&socket , &src_addr);
-                        println!("Handling request: {}", message);
-                        handled = true;
-                    } 
-                    // Case 2: Top of the queue and Offline
-                    else {
-                        println!("Offline :(");
-                        send_offline(id, online_servers);
-                        handled = false;
-                        // thread::sleep(Duration::from_secs(2 as u64));
-                        // break;
-                        // utils::send_status(format!("online - {}", ID), ONLINE_SERVERS)
-                    }
-                
-                }
-                else {
-                    let off_id = off_server.lock().unwrap();
-                    match new_head {
-                        Some(head) => {
-                            // Case 3: not top of the queue and online
-                            if *off_id == *head {
-                                handled = false;
-                                // println!("Not top!")
-                            }
-                            else {
-                                handled = true;
-                            }
-                        }
-                        None => todo!()
-                    }
-                }
-                servers.enqueue(old);
-                drop(token);
-            }
-        }
     }
 }
 
@@ -318,4 +301,92 @@ pub fn receive_image(socket: &UdpSocket , src_addr: &SocketAddr)  {
 }
 
 
- 
+// pub fn handle_regular_requests(
+//     socket: &UdpSocket,
+//     servers: &mut Queue<i32>,
+//     flg: Arc<Mutex<bool>>,
+//     off_server: Arc<Mutex<i32>>,
+//     id: i32,
+//     online_servers: [&str; 2])
+// {
+//     let mut buffer = [0; 512];
+//     // let mut size;
+//     let mut handled: bool = true;
+//     let mut message = String::from("");
+//     loop {
+//         // if handled {
+//         // deque from requests buff
+//         let (size, _src_addr) = socket.recv_from(&mut buffer).expect("Failed to receive message");
+//         message = str::from_utf8(&buffer[..size]).unwrap().trim().to_string();
+//         // }
+//         if let Some((old, new_head)) = servers.dequeue() {
+//         let token = flg.lock().unwrap();
+
+//             if new_head == Some(&id) {
+//                 // println!("I am top {}", id);
+//                 // Case 1: Top of the queue and not offline
+//                 if *token == false {
+//                     println!("Handling request: {}", message);
+//                     handled = true;
+//                 }
+//                 // Case 2: Top of the queue and Offline
+//                 else {
+//                     println!("Offline :( at req - {}", message);
+//                     send_offline(SERVERS[id as usize], online_servers);
+//                     handled = false;
+//                     // thread::sleep(Duration::from_secs(2 as u64));
+//                                         // break;
+//                     // utils::send_status(format!("online - {}", ID), ONLINE_SERVERS)
+//                 }
+//             }
+//             else {
+//                 let off_id = off_server.lock().unwrap();
+//                 match new_head {
+//                     Some(head) => {
+//                     // Case 3: not top of the queue and online
+//                     if *off_id == *head {
+//                         handled = false;
+//                     // println!("Not top!")
+//                     }
+//                     else {
+//                         handled = true;
+//                     }
+//                 } None => todo!()
+//                 }
+//             }
+//             servers.enqueue(old);
+//             drop(token);
+//         }
+//     }
+// }
+
+pub fn handle_requests_v2(
+    socket: &UdpSocket,
+    online_servers: [&str; 2],
+    work_flg: Arc<Mutex<bool>>,
+    offline_flg: Arc<Mutex<bool>>,
+    id: i32,
+    servers: [&str; 3])
+{
+    let mut buffer = [0; 512];
+   
+    let mut message = String::from("");
+    loop {
+       
+        let (size, _src_addr) = socket.recv_from(&mut buffer).expect("Failed to receive message");
+        message = str::from_utf8(&buffer[..size]).unwrap().trim().to_string();
+        
+        let work_token = work_flg.lock().unwrap();
+        let offline_token = offline_flg.lock().unwrap();
+        if *work_token == true {
+            println!("Handling request: {}", message);
+        }
+        else if *offline_token == true{
+            let socket = UdpSocket::bind("0.0.0.0:0").expect("Failed to bind socket");
+            send_offline (servers[id as usize], online_servers);
+        }
+        drop(work_token);
+        drop(offline_token);
+    }
+}
+
