@@ -5,27 +5,28 @@ use std::thread;
 use std::sync::{Arc, Mutex};
 use common_lib::utils;
 
-static ID: i32 = 2;
+static ID: i32 = 1;
 
 //requests port: 1231 -> 1111
 //offline ports: 2231 -> 2222
 //token ports: 3231 -> 3333
 
 static ONLINE_SERVERS: [&str; 2] = [
-	"127.0.0.1:2222",
-    "127.0.0.1:2222",
+	"10.40.46.114:2222",
+    "10.40.54.22:2222"
 ];
 
 static SERVERS: [&str; 3] = [
-	"10.40.32.49",
-    "10.40.37.106",
-    "10.40.37.106"
+	"10.40.54.22",
+    "10.40.49.16",
+	"10.40.46.114"
+    
 ];
 
 fn main() {
 	let requests_port = 4444;
-	let next_server = 3;
-	let next_next_server = 1;
+	let next_server = 2;
+	let next_next_server = 0;
 
 	let off_flag = Arc::new(Mutex::new(false));
 	let off_flag_clone = Arc::clone(&off_flag);
