@@ -9,20 +9,23 @@ use std::net::{UdpSocket, SocketAddr};
 use std::sync::{Arc, Mutex};
 use std::str;
 use std::time::Duration;
-use image::{open,ImageOutputFormat};
+use image::{open,ImageOutputFormat, GenericImageView, DynamicImage};
 use steganography::encoder::*;
-use image::DynamicImage;
 use std::io::Cursor;
 use std::io::Read;
 use std::io;
 use std::io::BufReader;
 use std::thread;
+use image::imageops::FilterType;
+use std::process::Command;
 
 const MAX_PACKET_SIZE: usize = 1000000;
 const HEADER_SIZE: usize = 8; // Adjust according to your actual header size
 const END_OF_TRANSMISSION: usize = usize::MAX;
 const CHUNK_SIZE: usize = 65008;
 const ACK_TIMEOUT: Duration = Duration::from_millis(500);
+
+
 
 fn send_image_to_client( client_addr: &SocketAddr, image_path: &str) -> io::Result<()> {
   // println!(" client socket = {}", format!("{}:{}", client_addr.ip(), client_addr.port()));
@@ -78,7 +81,7 @@ fn send_image_to_client( client_addr: &SocketAddr, image_path: &str) -> io::Resu
     Ok(())
 }
 
-fn receive_image(socket: &UdpSocket , src_addr: &SocketAddr)  {
+fn receive_image_to_encode(socket: &UdpSocket , src_addr: &SocketAddr)  {
     let mut file_storage: HashMap<usize, Vec<u8>> = HashMap::new();
     let mut buffer = [0u8; MAX_PACKET_SIZE];
     let mut end_of_transmission_received = false;
@@ -176,9 +179,9 @@ fn receive_image(socket: &UdpSocket , src_addr: &SocketAddr)  {
     let (width, height) = encoded_image.dimensions();
     let img = DynamicImage::ImageRgba8(image::RgbaImage::from_raw(width, height, encoded_image.to_vec()).unwrap());
 
-        // Assuming image_name is a String
-        let encoded_image_path = format!("encoded_{}", image_name);
-        // Save and process the image
+    // Assuming image_name is a String
+    let encoded_image_path = format!("encoded_{}", image_name);
+    // Save and process the image
 
     img.save(&encoded_image_path).expect("Failed to save the image");
     println!("done Encoding \n");
@@ -193,9 +196,6 @@ fn receive_image(socket: &UdpSocket , src_addr: &SocketAddr)  {
    send_image_to_client(&src, &encoded_image_path).expect("Failed to send encoded image to client");
   
 }
-
-// TODO:
-// vec of servers IPs to be shared globaly --> all 3 IPs
 
 pub fn failure_token_handle(flag: Arc<Mutex<bool>>, next_token_add: &str){
 	let token_port = 3333;
@@ -221,19 +221,6 @@ pub fn failure_token_handle(flag: Arc<Mutex<bool>>, next_token_add: &str){
 }
 
 pub fn working_token_handle(off_server: Arc<Mutex<i32>>, work_flag: Arc<Mutex<bool>>, next_add: i32, next_next_add: i32, servers: [&str; 3]){
-    /*
-    * if received a request.
-    * if online server:
-        * check if I have token (I should receive a token before)
-            * handle_incomming
-            if the next is not offline:
-                * pass to it
-            else:
-                * pass to the next
-        * if no token:
-            * recieve token (listening)
-    */
-
     let token_port = 6666;
     let token_socket = UdpSocket::bind(format!("0.0.0.0:{}", token_port)).expect("Failed to bind socket");
     let msg = "ball";
@@ -253,21 +240,21 @@ pub fn working_token_handle(off_server: Arc<Mutex<i32>>, work_flag: Arc<Mutex<bo
         //println!("Released work token ^^)");
 
         // checking next server:
-        let off_server_id = off_server.lock();
-        match off_server_id {
-            Ok(off_id) => {
-                if *off_id == next_add {
-                    token_socket.send_to(msg.as_bytes(), format!("{}:{}", servers[next_next_add as usize], token_port)).expect("Failed to send message");
-                }
-                else {
+        // let off_server_id = off_server.lock();
+        // match off_server_id {
+        //     Ok(off_id) => {
+        //         if *off_id == next_add {
+                    // token_socket.send_to(msg.as_bytes(), format!("{}:{}", servers[next_next_add as usize], token_port)).expect("Failed to send message");
+        //         }
+        //         else {
                     token_socket.send_to(msg.as_bytes(), format!("{}:{}", servers[next_add as usize], token_port)).expect("Failed to send message");
-                }
-            }
-            Err(e) => {
-                // Handle the error if lock cannot be acquired (e.g., if another thread has panicked while holding the lock)
-                println!("Failed to acquire the lock: {:?}", e);
-            }
-        }
+        //         }
+        //     }
+        //     Err(e) => {
+        //         // Handle the error if lock cannot be acquired (e.g., if another thread has panicked while holding the lock)
+        //         println!("Failed to acquire the lock: {:?}", e);
+        //     }
+        // }
     }
 }
 
@@ -281,7 +268,7 @@ pub fn send_offline (off_server: &str, online_servers: [&str; 2]){
 	}
 }
 
-pub fn who_offline_handler(off_server: Arc<Mutex<i32>> , id: i32) {
+pub fn who_offline_handler(off_server: Arc<Mutex<i32>>) {
     let offline_port = 2222;
     let offline_add = format!("0.0.0.0:{}", offline_port);
     let socket = UdpSocket::bind(offline_add).expect("Failed to bind socket");
@@ -319,14 +306,14 @@ pub fn handle_requests_v2(
                 let ack_message =(id).to_be_bytes();
                 let _ = socket.send_to(&ack_message, &src_addr);
                 println!("ID sent {}",id);
-                receive_image(&socket , &src_addr );
+                receive_image_to_encode(&socket , &src_addr );
                 // println!("Handling request: {}", message);
             }
-            else if *offline_token == true{
-                drop(offline_token);
-                println!("Offline at {}",message);
-                send_offline (servers[id as usize], online_servers);
-            }
+            // else if *offline_token == true{
+            //     drop(offline_token);
+            //     println!("Offline at {}",message);
+            //     send_offline (servers[id as usize], online_servers);
+            // }
             else {
                 println!("not working");
                 continue;
@@ -334,3 +321,142 @@ pub fn handle_requests_v2(
         }
     }
 }
+
+// from client to server
+pub fn register_client_in_dos(ip: &str, servers: [&str; 3]){
+    let dos_port = 7777;
+    let socket = UdpSocket::bind("0.0.0.0:0").expect("Failed to bind dos socket");
+    for server in servers {
+		let server_add: SocketAddr = format!("{}:{}", server, dos_port).parse().expect("Failed to parse server address");
+		socket.send_to(ip.as_bytes(), server_add).unwrap();
+		thread::sleep(Duration::from_millis(5));
+	}
+}
+
+// client asks server who's online:
+pub fn whos_online(servers: [&str; 3]) -> Vec<String> {
+    let port = 8888;
+    let socket = UdpSocket::bind("0.0.0.0:0").expect("Failed to bind socket");
+    let msg = "Who online";
+    for server in servers {
+		let server_add: SocketAddr = format!("{}:{}", server, port).parse().expect("Failed to parse server address");
+		socket.send_to(msg.as_bytes(), server_add).unwrap();
+		thread::sleep(Duration::from_millis(5));
+	}
+
+    let mut buffer = [0; 512];    
+    let (size, _) = socket.recv_from(&mut buffer).expect("Failed to receive message");
+    let ips = str::from_utf8(&buffer[..size]).unwrap().trim().to_string();
+    let ips_vec: Vec<String> = ips.split('_')
+                                  .map(|s| s.to_string())
+                                  .collect();
+    println!("{:?}", ips_vec);
+    return ips_vec;
+}
+
+// server stores online clinets
+pub fn store_in_dos (dos_map: Arc<Mutex<HashMap<String, bool>>>){
+    let dos_port = 7777;
+    let socket = UdpSocket::bind(format!("0.0.0.0:{}", dos_port)).expect("Failed to bind dos socket");
+    loop {
+        let mut buffer = [0; 512];
+        let (size, _addr) = socket.recv_from(&mut buffer).expect("Did not correctly receive data");
+        let ip = str::from_utf8(&buffer[..size]).unwrap().trim().to_string();
+        let mut dos_map = dos_map.lock().unwrap();        
+        println!("Stored new IP {}", ip);
+        dos_map.insert(ip, true);
+    }
+}
+
+// server respond who's online
+pub fn send_who_online(dos_map: Arc<Mutex<HashMap<String, bool>>>){
+    let dos_port: i32 = 8888;
+    let socket = UdpSocket::bind(format!("0.0.0.0:{}", dos_port)).expect("Failed to bind dos socket");
+    loop {
+        let mut buffer = [0; 512];
+        let (size,addr) = socket.recv_from(&mut buffer).expect("Did not correctly receive data");
+        let msg = str::from_utf8(&buffer[..size]).unwrap().trim().to_string();
+        if msg == "Who online".to_string() {
+            let sender_addr: Vec<String>  = addr.to_string().split(':').map(|s| s.to_string()).collect();
+            let sender_ip = sender_addr.get(0);
+            let mut conc_ips = String::new();
+            let mut dos_map = dos_map.lock().unwrap();        
+ 
+            // loop over the map and concatinate ips 
+            for (key, value) in dos_map.iter_mut(){
+                // let def : &String;
+                if let Some(ip) = sender_ip {
+                    if ip != key {
+                        if *value == true {
+                            conc_ips.push_str(key);
+                            conc_ips.push_str("_");
+                        }
+                    }
+                }
+            }
+            socket.send_to(conc_ips.as_bytes(), addr).expect("Failed to send IPs");
+        }
+    }
+}
+
+
+fn convert_to_low_resolution(image_name: &str, new_width: u32, new_height: u32) {
+    println!("converting {}", image_name);
+    // Load the image
+    let img = image::open(image_name).unwrap();
+    // Resize the image to a lower resolution
+    let resized = img.resize_exact(new_width, new_height, FilterType::Nearest);
+    let output_file_name = format!("low_res_{}", image_name);
+    resized.save(output_file_name).unwrap();
+}
+
+// client 1 (requester)
+// 1. send msg to view imags --> "view all" 
+//      listening for recieving low res
+//      choose img ID to view
+//      send ID to client
+//      listen for number of views
+//      listen for recieve of high res
+//      recive it and save encrypted
+//      prompt to view image or send another client.
+//          view image:
+// ...........................................................
+//              check num of views -- decrypt -- view image
+//          send another client -- continue
+// and loop: 
+//      client to view the image --> enter v
+//      each time to have v --> decrement
+
+// source IP client --> pair (img ID, number of views)
+
+// client 2
+// 2. listing for "view all"
+//      send low resolution images
+//      listening for ID
+//      send encoded img
+//      send number of views
+//      send image
+
+
+pub fn send_my_img () {
+    // let imgs_port: i32 = 9999;
+    // let mut buffer = [0; 512];
+
+    // let socket = UdpSocket::bind(format!("0.0.0.0:{}", imgs_port)).expect("Failed to bind dos socket");
+	// let (size, src_addr) = socket.recv_from(&mut buffer).expect("Failed to receive message");
+	// let view_msg = str::from_utf8(&buffer[..size]).unwrap().trim().to_string();
+    for i in 0..4 {
+        let image_name = format!("image{}.jpg", i);
+        convert_to_low_resolution(&image_name, 50, 50);
+    }
+
+
+    // if view_msg == "view all".to_string() {
+    //     println!("view request from {}!", src_addr);
+    //     for i in 0..4 {
+    //         let image_name = format!("image{}.jpg", i);
+    //     }
+
+    // }
+}
+

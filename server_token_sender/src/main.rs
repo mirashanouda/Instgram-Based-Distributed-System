@@ -4,6 +4,8 @@ use std::str;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+use std::collections::HashMap;
+
 
 static ID: i32 = 2;
 
@@ -13,13 +15,13 @@ static ID: i32 = 2;
 
 static ONLINE_SERVERS: [&str; 2] = [
 	"10.40.32.184:2222", 
-	"10.40.55.145:2222"
+	"10.40.44.118:2222"
 ];
 
 static SERVERS: [&str; 3] = [
 	"10.40.32.184", 
-	"10.40.55.145",
-	"10.40.54.22", 
+	"10.40.44.118",
+	"10.40.45.33", 
 ];
 
 fn failure_token_handle_sender(flag: Arc<Mutex<bool>>, next_token_add: &str) {
@@ -51,9 +53,7 @@ fn failure_token_handle_sender(flag: Arc<Mutex<bool>>, next_token_add: &str) {
         *token = false;
         drop(token);
         //println!("Released token now :)");
-        token_socket
-            .send_to(msg.as_bytes(), next_server)
-            .expect("Failed to send message");
+        token_socket.send_to(msg.as_bytes(), next_server).expect("Failed to send message");
     }
 }
 
@@ -65,18 +65,6 @@ fn working_token_handle_sender(
     servers: [&str; 3],
 ) {
     println!("Working token initializer");
-    /**
-    * if received a request.
-    * if online server:
-        * check if I have token (I should receive a token before)
-            * handle_incomming
-            if the next is not offline:
-                * pass to it
-            else:
-                * pass to the next
-        * if no token:
-            * recieve token (listening)
-     */
     let token_port = 6666;
     let next_server: SocketAddr = format!("{}:{}", servers[next_add as usize], token_port)
         .parse()
@@ -99,38 +87,28 @@ fn working_token_handle_sender(
         let mut work_token = work_flag.lock().unwrap();
         *work_token = true;
         drop(work_token);
-        //println!("I am working now yaaaaay");
+        println!("I am working now yaaaaay");
         thread::sleep(Duration::from_millis(1000 as u64));
         work_token = work_flag.lock().unwrap();
         *work_token = false;
         drop(work_token);
-        //println!("Released work token ^^)");
+        println!("Released work token ^^)");
 
         // checking next server:
         let off_server_id = off_server.lock();
-        match off_server_id {
-            Ok(off_id) => {
-                if *off_id == next_add {
-                    token_socket
-                        .send_to(
-                            msg.as_bytes(),
-                            format!("{}:{}", servers[next_next_add as usize], token_port),
-                        )
-                        .expect("Failed to send message");
-                } else {
-                    token_socket
-                        .send_to(
-                            msg.as_bytes(),
-                            format!("{}:{}", servers[next_add as usize], token_port),
-                        )
-                        .expect("Failed to send message");
-                }
-            }
-            Err(e) => {
-                // Handle the error if lock cannot be acquired (e.g., if another thread has panicked while holding the lock)
-                println!("Failed to acquire the lock: {:?}", e);
-            }
-        }
+        // match off_server_id {
+            // Ok(off_id) => {
+                // if *off_id == next_add {
+                //     token_socket.send_to(msg.as_bytes(), format!("{}:{}", servers[next_next_add as usize], token_port)).expect("Failed to send message");
+                // } else {
+                    token_socket.send_to(msg.as_bytes(), format!("{}:{}", servers[next_add as usize], token_port)).expect("Failed to send message");
+                // }
+            // }
+            // Err(e) => {
+            //     // Handle the error if lock cannot be acquired (e.g., if another thread has panicked while holding the lock)
+            //     println!("Failed to acquire the lock: {:?}", e);
+            // }
+        // }
     }
 }
 
@@ -139,42 +117,60 @@ fn main() {
     let next_server = 0;
     let next_next_server = 1;
 
+    let mut handles = vec![];
+
     let off_flag = Arc::new(Mutex::new(false));
     let off_flag_clone = Arc::clone(&off_flag);
-    thread::spawn(move || {
-        failure_token_handle_sender(off_flag_clone, SERVERS[next_server as usize])
-    });
+    // thread::spawn(move || {
+    //     failure_token_handle_sender(off_flag_clone, SERVERS[next_server as usize])
+    // });
 
     let off_server = Arc::new(Mutex::new(0));
     let off_server_clone = Arc::clone(&off_server);
     // launch a  thread for offline handler
-    thread::spawn(move || utils::who_offline_handler(off_server_clone, ID));
+    // thread::spawn(move || utils::who_offline_handler(off_server_clone, ID));
 
     let off_server_clone = Arc::clone(&off_server);
     let work_flag = Arc::new(Mutex::new(false));
     let work_flag_clone = Arc::clone(&work_flag);
-    thread::spawn(move || {
-        working_token_handle_sender(
-            off_server_clone,
-            work_flag_clone,
-            next_server as i32,
-            next_next_server,
-            SERVERS,
-        )
+    // thread::spawn(move || {
+    //     working_token_handle_sender(
+    //         off_server_clone,
+    //         work_flag_clone,
+    //         next_server as i32,
+    //         next_next_server,
+    //         SERVERS,
+    //     )
+    // });
+    
+    let dos_map: HashMap<String, bool> = HashMap::new();
+    let dos_map = Arc::new(Mutex::new(dos_map));
+    let dos_map_clone = Arc::clone(&dos_map);
+    let handle1 = thread::spawn(move || {
+        utils::store_in_dos(Arc::clone(&dos_map_clone))
     });
+    handles.push(handle1);
+
+    let handle2 = thread::spawn(move || {
+        utils::send_who_online(Arc::clone(&dos_map))
+    });
+    handles.push(handle2);
 
     println!("Listening for requests on port {}", requests_port);
-    loop {
-        let socket =
-            UdpSocket::bind(format!("0.0.0.0:{}", requests_port)).expect("Failed to bind socket");
-        // println!("socket = {:?}", socket);
-        utils::handle_requests_v2(
-            &socket,
-            ONLINE_SERVERS,
-            Arc::clone(&work_flag),
-            Arc::clone(&off_flag),
-            ID,
-            SERVERS,
-        );
+    // loop {
+    //     let socket =
+    //         UdpSocket::bind(format!("0.0.0.0:{}", requests_port)).expect("Failed to bind socket");
+    //     // println!("socket = {:?}", socket);
+    //     utils::handle_requests_v2(
+    //         &socket,
+    //         ONLINE_SERVERS,
+    //         Arc::clone(&work_flag),
+    //         Arc::clone(&off_flag),
+    //         ID,
+    //         SERVERS,
+    //     );
+    // }
+    for handle in handles {
+        handle.join().unwrap();
     }
 }
