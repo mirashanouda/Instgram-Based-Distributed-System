@@ -215,17 +215,9 @@ fn select_server(address: &str,socket: &UdpSocket , image_path : &str) {
         }
     }
 }
-
-
-fn send_message_to_server(socket: &UdpSocket,server_address: &SocketAddr,msg: String) {
-    let message = format!("{}",msg);
-    socket.send_to(message.as_bytes(), server_address).expect("Failed to send message");
-    println!("client sent req");         
-}
        
        
-fn recive_ack(socket: &UdpSocket,ser_list: &Vec<&str> , image_path : &str)
-{
+fn recive_ack(socket: &UdpSocket,ser_list: &Vec<&str> , image_path : &str) {
 	let mut ack_buffer = [0;4];
             match socket.recv_from(&mut ack_buffer) {
                 Ok(_) => {
@@ -238,8 +230,7 @@ fn recive_ack(socket: &UdpSocket,ser_list: &Vec<&str> , image_path : &str)
            }
 }     
 
-fn recive_ready(socket: &UdpSocket,image_name:&str,i: &u32)
-{
+fn recive_ready(socket: &UdpSocket,image_name:&str,i: &u32) {
     let mut ack_buffer=[0;4];
     loop {
 	
@@ -289,7 +280,7 @@ fn main() {
     	let image_name = format!("image{}.jpg",i);
         for address in &server_addresses {
             // Directly call the function here without spawning a new thread
-            send_message_to_server(&socket_req,&address,"Request".to_string());   
+            utils::send_message(&socket_req,&address,"Request".to_string());   
         }
         recive_ack(&socket_req, &ser_list ,&image_name);
         let socket_img = UdpSocket::bind(format!("0.0.0.0:{}", img_port)).expect("Failed to bind socket");

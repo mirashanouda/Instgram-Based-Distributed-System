@@ -27,7 +27,7 @@ const ACK_TIMEOUT: Duration = Duration::from_millis(500);
 
 
 
-fn send_image_to_client( client_addr: &SocketAddr, image_path: &str) -> io::Result<()> {
+pub fn send_image_to_client( client_addr: &SocketAddr, image_path: &str) -> io::Result<()> {
   // println!(" client socket = {}", format!("{}:{}", client_addr.ip(), client_addr.port()));
    
    let socket = UdpSocket::bind(format!("0.0.0.0:{}", client_addr.port())).expect("Failed to bind socket");
@@ -81,7 +81,7 @@ fn send_image_to_client( client_addr: &SocketAddr, image_path: &str) -> io::Resu
     Ok(())
 }
 
-fn receive_image_to_encode(socket: &UdpSocket , src_addr: &SocketAddr)  {
+pub fn receive_image_to_encode(socket: &UdpSocket , src_addr: &SocketAddr)  {
     let mut file_storage: HashMap<usize, Vec<u8>> = HashMap::new();
     let mut buffer = [0u8; MAX_PACKET_SIZE];
     let mut end_of_transmission_received = false;
@@ -195,6 +195,59 @@ fn receive_image_to_encode(socket: &UdpSocket , src_addr: &SocketAddr)  {
    // Send the encoded image to the client
    send_image_to_client(&src, &encoded_image_path).expect("Failed to send encoded image to client");
   
+}
+
+pub fn receive_image (socket: &UdpSocket, img_name: &str) {
+    let mut file_storage: HashMap<usize, Vec<u8>> = HashMap::new();
+    let mut buffer = [0u8; CHUNK_SIZE + HEADER_SIZE];
+    let mut end_of_transmission_received = false;
+    let mut src_img : SocketAddr;
+	while !end_of_transmission_received {
+        match socket.recv_from(&mut buffer) {
+            Ok((size, src_img)) => {
+            let sequence_number = match buffer[..HEADER_SIZE].try_into() {
+                Ok(bytes) => usize::from_be_bytes(bytes),
+                Err(e) => {
+                    eprintln!("Failed to convert header bytes: {}", e);
+                    continue;
+                }
+            };
+            
+            if sequence_number == END_OF_TRANSMISSION {
+                end_of_transmission_received = true;
+            } else {
+                let image_data = &buffer[HEADER_SIZE..size];
+                file_storage.insert(sequence_number, image_data.to_vec());
+            }
+            
+            // Send ACK for the received chunk
+            let ack_packet = sequence_number.to_be_bytes();
+            if let Err(e) = socket.send_to(&ack_packet,&src_img) {
+                eprintln!("Failed to send ACK: {}", e);
+                continue;
+            }
+		},
+		Err(e) => {
+            eprintln!("Failed to receive data: {}", e);
+		    continue; // Continue the loop even if there's an error
+		}
+    };
+}
+
+    println!("Done receiving");
+
+    let path = format!("encrypted_{}", img_name);
+    // Reassemble and save the image as before
+    let mut complete_image = Vec::new();
+    for i in 0..file_storage.len() {
+        if let Some(chunk) = file_storage.remove(&i) {
+            complete_image.extend_from_slice(&chunk);
+        }
+    }
+
+    let mut file = File::create(path.clone()).unwrap();
+    file.write_all(&complete_image).unwrap();
+    println!("Image completed!!!!!!!!!!!!!");
 }
 
 pub fn failure_token_handle(flag: Arc<Mutex<bool>>, next_token_add: &str){
@@ -400,6 +453,12 @@ pub fn send_who_online(dos_map: Arc<Mutex<HashMap<String, bool>>>){
 }
 
 
+pub fn send_message(socket: &UdpSocket, server_address: &SocketAddr,msg: &str) {
+    let message = format!("{}",msg);
+    socket.send_to(message.as_bytes(), server_address).expect("Failed to send message");
+    println!("client sent req");         
+}
+
 fn convert_to_low_resolution(image_name: &str, new_width: u32, new_height: u32) {
     println!("converting {}", image_name);
     // Load the image
@@ -433,30 +492,64 @@ fn convert_to_low_resolution(image_name: &str, new_width: u32, new_height: u32) 
 // 2. listing for "view all"
 //      send low resolution images
 //      listening for ID
-//      send encoded img
 //      send number of views
+//      send encoded img
 //      send image
 
 
+// support multithreading
 pub fn send_my_img () {
-    // let imgs_port: i32 = 9999;
-    // let mut buffer = [0; 512];
+    let imgs_port: i32 = 9999;
+    let mut buffer = [0; 512];
 
-    // let socket = UdpSocket::bind(format!("0.0.0.0:{}", imgs_port)).expect("Failed to bind dos socket");
-	// let (size, src_addr) = socket.recv_from(&mut buffer).expect("Failed to receive message");
-	// let view_msg = str::from_utf8(&buffer[..size]).unwrap().trim().to_string();
+    let socket = UdpSocket::bind(format!("0.0.0.0:{}", imgs_port)).expect("Failed to bind dos socket");
+	let (size, src_addr) = socket.recv_from(&mut buffer).expect("Failed to receive message");
+	let view_msg = str::from_utf8(&buffer[..size]).unwrap().trim().to_string();
     for i in 0..4 {
         let image_name = format!("image{}.jpg", i);
         convert_to_low_resolution(&image_name, 50, 50);
     }
 
-
-    // if view_msg == "view all".to_string() {
-    //     println!("view request from {}!", src_addr);
-    //     for i in 0..4 {
-    //         let image_name = format!("image{}.jpg", i);
-    //     }
-
-    // }
+    if view_msg == "view all".to_string() {
+        println!("view request from {}!", src_addr);
+        // send dynamic port to handle comminication
+        for i in 0..4 {
+            let image_name = format!("low_res_image{}.jpg", i);
+            let _ = send_image_to_client(&src_addr, &image_name);
+            thread::sleep(Duration::from_millis(200));
+        }
+        // waiting for other client to choose image:
+        let (size, src_addr) = socket.recv_from(&mut buffer).expect("Failed to receive message");
+        let id = str::from_utf8(&buffer[..size]).unwrap().trim().parse::<i32>().unwrap();
+        // TODO: change to encoded image.
+        let image_name = format!("image{}.jpg", id);
+        let views: i32 = 3;
+        let views_bytes = views.to_be_bytes(); 
+        socket.send_to(&views_bytes, src_addr).expect_err("Failed to send image views");
+        let _ = send_image_to_client(&src_addr, &image_name);
+    }
 }
 
+pub fn request_img_from_client () {
+    let socket = UdpSocket::bind(format!("0.0.0.0:0")).expect("Failed to bind dos socket");
+    let msg = "view all";
+    let friend_addr: SocketAddr = "127.0.0.1:9999".parse().expect("Failed to parse server address");
+    send_message(&socket, &friend_addr, msg);
+
+    for i in 0..4 {
+        let img_name = format!("image{}.jpg", i);
+        receive_image (&socket, &img_name);
+    }
+
+    let id: i32 = 2;
+    let id_bytes = id.to_be_bytes();
+    let _ = socket.send_to(&id_bytes, friend_addr);
+    
+    let mut buffer = [0; 512]; 
+    let (size, _) = socket.recv_from(&mut buffer).expect("Failed to receive message");
+    // TODO: convert to mutex
+    let view_msg = str::from_utf8(&buffer[..size]).unwrap().trim().to_string();
+    let img_name = "final_image.jpg";
+    receive_image (&socket, &img_name);
+    thread::sleep(Duration::from_millis(500));
+}
