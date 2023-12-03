@@ -545,6 +545,5 @@ pub fn request_img_from_client (friend_addr: SocketAddr) {
     let img_name = "final_image.jpg";
     receive_image (&socket, &img_name);
     thread::sleep(Duration::from_millis(500));
-
-
 }
+
